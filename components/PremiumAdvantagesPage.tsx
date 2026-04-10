@@ -34,6 +34,18 @@ export const PremiumAdvantagesPage: React.FC<PremiumAdvantagesPageProps> = ({ on
       color: 'text-emerald-500'
     },
     {
+      icon: 'fa-comment-medical',
+      title: 'Coach AI 24/7',
+      description: 'Seu mentor pessoal de saúde disponível a qualquer momento para tirar dúvidas e motivar.',
+      color: 'text-indigo-500'
+    },
+    {
+      icon: 'fa-cloud-slash',
+      title: 'Modo Offline',
+      description: 'Continue contando seus passos e monitorando sua saúde mesmo sem conexão com a internet.',
+      color: 'text-orange-500'
+    },
+    {
       icon: 'fa-chart-line',
       title: 'Análise Avançada',
       description: 'Acesse o histórico completo de treinos e métricas detalhadas da sua evolução.',
@@ -86,10 +98,6 @@ export const PremiumAdvantagesPage: React.FC<PremiumAdvantagesPageProps> = ({ on
             >
               Quero ser Premium
             </button>
-            
-            <p className={`text-[9px] uppercase font-bold tracking-tighter ${isDark ? 'text-white/30' : 'text-black/30'}`}>
-              <i className="fa-solid fa-shield-halved mr-1"></i> Pagamento único • Sem assinaturas mensais
-            </p>
           </div>
         </div>
       </div>

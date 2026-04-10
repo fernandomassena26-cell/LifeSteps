@@ -5,6 +5,7 @@ import { UserProfile } from '../types';
 interface ProfilePageProps {
   user: UserProfile;
   onLogout: () => void;
+  onUpdateUser: (updated: UserProfile) => void;
   onViewPremium?: () => void;
   theme: 'dark' | 'light';
   onToggleTheme: () => void;
@@ -13,6 +14,7 @@ interface ProfilePageProps {
 export const ProfilePage: React.FC<ProfilePageProps> = ({ 
   user, 
   onLogout, 
+  onUpdateUser,
   onViewPremium, 
   theme, 
   onToggleTheme 
@@ -25,6 +27,14 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
     weight_loss: 'Emagrecer',
     muscle_gain: 'Ganhar Massa',
     maintenance: 'Manter a Forma'
+  };
+
+  const levelLabels = {
+    very_light: 'Muito Leve',
+    light: 'Leve',
+    moderate: 'Moderado',
+    hard: 'Difícil',
+    very_hard: 'Muito Difícil'
   };
 
   const isDark = theme === 'dark';
@@ -90,14 +100,67 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
         </div>
 
         <div className={`glass-card rounded-2xl p-5 border ${isDark ? 'border-white/5' : 'border-black/5 shadow-sm'}`}>
-          <div className="flex items-center gap-4 mb-4">
-            <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-600">
-              <i className="fa-solid fa-bullseye"></i>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className={`w-10 h-10 rounded-xl ${isDark ? 'bg-blue-500/10 text-blue-400' : 'bg-blue-50 text-blue-600'} flex items-center justify-center`}>
+                <i className="fa-solid fa-droplet"></i>
+              </div>
+              <div>
+                <p className={`${isDark ? 'text-white/40' : 'text-black/40'} text-[10px] uppercase font-black tracking-widest`}>Notificações de Água</p>
+                <p className={`text-sm font-bold ${isDark ? 'text-white' : 'text-black'}`}>Lembrete a cada 3h</p>
+              </div>
             </div>
-            <div>
-              <p className={`${isDark ? 'text-white/40' : 'text-black/40'} text-[10px] uppercase font-black tracking-widest`}>Objetivo Atual</p>
-              <p className={`font-bold ${isDark ? 'text-white' : 'text-black'}`}>{goalLabels[user.goal]}</p>
+            <button 
+              onClick={() => onUpdateUser({ ...user, waterNotificationsEnabled: !user.waterNotificationsEnabled })}
+              className={`w-12 h-6 rounded-full relative transition-colors duration-300 ${user.waterNotificationsEnabled ? 'bg-blue-600' : 'bg-zinc-700'}`}
+            >
+              <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all duration-300 ${user.waterNotificationsEnabled ? 'left-7' : 'left-1'}`}></div>
+            </button>
+          </div>
+        </div>
+
+        <div className={`glass-card rounded-2xl p-5 border ${isDark ? 'border-white/5' : 'border-black/5 shadow-sm'}`}>
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-4">
+              <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-600">
+                <i className="fa-solid fa-bullseye"></i>
+              </div>
+              <div>
+                <p className={`${isDark ? 'text-white/40' : 'text-black/40'} text-[10px] uppercase font-black tracking-widest`}>Objetivo Atual</p>
+                <p className={`font-bold ${isDark ? 'text-white' : 'text-black'}`}>{goalLabels[user.goal]}</p>
+              </div>
             </div>
+            <select 
+              className={`bg-transparent text-[10px] font-black uppercase tracking-widest ${isDark ? 'text-blue-400' : 'text-blue-600'} focus:outline-none`}
+              value={user.goal}
+              onChange={(e) => onUpdateUser({ ...user, goal: e.target.value as any })}
+            >
+              <option value="weight_loss">Emagrecer</option>
+              <option value="muscle_gain">Ganhar Massa</option>
+              <option value="maintenance">Manter</option>
+            </select>
+          </div>
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-4">
+              <div className="w-10 h-10 rounded-xl bg-orange-500/10 flex items-center justify-center text-orange-600">
+                <i className="fa-solid fa-gauge-high"></i>
+              </div>
+              <div>
+                <p className={`${isDark ? 'text-white/40' : 'text-black/40'} text-[10px] uppercase font-black tracking-widest`}>Nível de Treino</p>
+                <p className={`font-bold ${isDark ? 'text-white' : 'text-black'}`}>{levelLabels[user.fitnessLevel]}</p>
+              </div>
+            </div>
+            <select 
+              className={`bg-transparent text-[10px] font-black uppercase tracking-widest ${isDark ? 'text-orange-400' : 'text-orange-600'} focus:outline-none`}
+              value={user.fitnessLevel}
+              onChange={(e) => onUpdateUser({ ...user, fitnessLevel: e.target.value as any })}
+            >
+              <option value="very_light">Muito Leve</option>
+              <option value="light">Leve</option>
+              <option value="moderate">Moderado</option>
+              <option value="hard">Difícil</option>
+              <option value="very_hard">Muito Difícil</option>
+            </select>
           </div>
           <div className="flex items-center gap-4">
             <div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-600">

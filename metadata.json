@@ -1,6 +1,6 @@
 {
   "name": "lifesteps",
-  "description": "A high-performance pedometer and fitness tracker inspired by top-tier mobile apps, featuring real-time step counting, calorie tracking, and an AI health coach.",
+  "description": "A high-performance pedometer and fitness tracker inspired by top-tier mobile apps, featuring real-time step counting, calorie tracking, and an AI health coach to guide your journey.",
   "requestFramePermissions": [
     "camera",
     "microphone"

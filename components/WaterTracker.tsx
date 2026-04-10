@@ -4,6 +4,7 @@ import React from 'react';
 interface WaterTrackerProps {
   current: number;
   onAdd: (amount: number) => void;
+  onRemove: (amount: number) => void;
   notificationsEnabled: boolean;
   onToggleNotifications: () => void;
   isDark: boolean;
@@ -12,6 +13,7 @@ interface WaterTrackerProps {
 export const WaterTracker: React.FC<WaterTrackerProps> = ({ 
   current, 
   onAdd, 
+  onRemove,
   notificationsEnabled, 
   onToggleNotifications,
   isDark
@@ -39,9 +41,20 @@ export const WaterTracker: React.FC<WaterTrackerProps> = ({
         </div>
 
         <div className="flex justify-between items-end mb-4 relative z-10">
-          <div className="text-left">
-            <span className="text-2xl font-black text-blue-600">{current}</span>
-            <span className={`${isDark ? 'text-white/20' : 'text-black/20'} text-sm`}> / {target} ml</span>
+          <div className="text-left flex items-center gap-3">
+            <div>
+              <span className="text-2xl font-black text-blue-600">{current}</span>
+              <span className={`${isDark ? 'text-white/20' : 'text-black/20'} text-sm`}> / {target} ml</span>
+            </div>
+            {current > 0 && (
+              <button 
+                onClick={() => onRemove(250)}
+                className={`w-8 h-8 rounded-full flex items-center justify-center transition-all active:scale-90 ${isDark ? 'bg-white/5 text-white/40 hover:bg-red-500/10 hover:text-red-500' : 'bg-black/5 text-black/40 hover:bg-red-500/10 hover:text-red-600'}`}
+                title="Remover 250ml"
+              >
+                <i className="fa-solid fa-minus text-[10px]"></i>
+              </button>
+            )}
           </div>
         </div>
         

@@ -8,37 +8,130 @@ import { ActivityCalculator } from './components/ActivityCalculator';
 import { ProfilePage } from './components/ProfilePage';
 import { WorkoutHistory } from './components/WorkoutHistory';
 import { PremiumAdvantagesPage } from './components/PremiumAdvantagesPage';
-import { DailyStats, UserProfile, Tab, UserGoal, WorkoutHistoryItem } from './types';
+import { DietBuilder } from './components/DietBuilder';
+import { AICoach } from './components/AICoach';
+import { DailyStats, UserProfile, Tab, UserGoal, WorkoutHistoryItem, FitnessLevel } from './types';
 import { STORAGE_KEYS, DEFAULT_GOAL, CALORIES_PER_STEP, DISTANCE_PER_STEP, TIME_PER_STEP } from './constants';
-import { getHealthAdvice, getFitnessContent } from './services/geminiService';
+import { getFitnessContent, calculateWorkoutCalories } from './services/geminiService';
 
 const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<Tab>(Tab.LOGIN);
-  const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
+  const [authMode, setAuthMode] = useState<'login' | 'signup' | 'forgot-password'>('login');
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [user, setUser] = useState<UserProfile | null>(null);
   const [notificationsAllowed, setNotificationsAllowed] = useState(false);
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
   
   const [formData, setFormData] = useState({
-    email: '',
-    password: '',
-    confirmPassword: '',
-    name: '',
-    age: '',
-    weight: '',
-    height: '',
-    goal: 'maintenance' as UserGoal
+    email: '', password: '', confirmPassword: '', name: '',
+    age: '', weight: '', height: '', goal: 'maintenance' as UserGoal,
+    fitnessLevel: 'moderate' as FitnessLevel
   });
 
   const [authError, setAuthError] = useState<string | null>(null);
-  const [stats, setStats] = useState<DailyStats>({
-    steps: 0, calories: 0, distance: 0, activeTime: 0, waterIntake: 0
-  });
+  
+  // Stats inicializados como nulo, carregados no useEffect após login
+  const [stats, setStats] = useState<DailyStats>({ steps: 0, calories: 0, distance: 0, activeTime: 0, waterIntake: 0 });
   const [workoutHistory, setWorkoutHistory] = useState<WorkoutHistoryItem[]>([]);
-  const [aiAdvice, setAiAdvice] = useState<string>("Pronto para sua caminhada?");
+  
   const [isTracking, setIsTracking] = useState(false);
-  const [premiumContent, setPremiumContent] = useState<string>("");
+  const wakeLockRef = useRef<any>(null);
+
+  const requestWakeLock = async () => {
+    if ('wakeLock' in navigator) {
+      try {
+        wakeLockRef.current = await (navigator as any).wakeLock.request('screen');
+        console.log('Wake Lock is active');
+      } catch (err: any) {
+        console.error(`${err.name}, ${err.message}`);
+      }
+    }
+  };
+
+  const releaseWakeLock = async () => {
+    if (wakeLockRef.current) {
+      try {
+        await wakeLockRef.current.release();
+        wakeLockRef.current = null;
+        console.log('Wake Lock released');
+      } catch (err: any) {
+        console.error(`${err.name}, ${err.message}`);
+      }
+    }
+  };
+
+  useEffect(() => {
+    if (isTracking) {
+      requestWakeLock();
+    } else {
+      releaseWakeLock();
+    }
+    return () => { releaseWakeLock(); };
+  }, [isTracking]);
+
+  useEffect(() => {
+    const handleVisibilityChange = async () => {
+      if (wakeLockRef.current !== null && document.visibilityState === 'visible') {
+        await requestWakeLock();
+        document.title = 'LifeSteps';
+      } else if (document.visibilityState === 'hidden' && isTracking) {
+        document.title = `👣 ${stats.steps} passos`;
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      document.title = 'LifeSteps';
+    };
+  }, [isTracking, stats.steps]);
+  const [premiumPlan, setPremiumPlan] = useState<any>(null);
+  const [loadingPlan, setLoadingPlan] = useState(false);
+
+  // Efeito para gerar plano de treino se for premium e não tiver um ou se o objetivo/nível mudou
+  useEffect(() => {
+    if (activeTab === Tab.WORKOUTS && user?.isPremium && !loadingPlan) {
+      const planMatchesGoal = premiumPlan?.goal === user.goal;
+      const planMatchesLevel = premiumPlan?.fitnessLevel === user.fitnessLevel;
+      if (!premiumPlan || !planMatchesGoal || !planMatchesLevel) {
+        generateWorkoutPlan();
+      }
+    }
+  }, [activeTab, user?.isPremium, user?.goal, user?.fitnessLevel]);
+
+  const generateWorkoutPlan = async () => {
+    if (!user) return;
+    setLoadingPlan(true);
+    try {
+      const plan = await getFitnessContent('workout', user.goal, user.fitnessLevel);
+      if (plan) {
+        // Anexa o objetivo e nível ao plano para controle de versão/mudança
+        setPremiumPlan({ ...plan, goal: user.goal, fitnessLevel: user.fitnessLevel });
+      }
+    } catch (e) {
+      console.error("Erro ao carregar plano premium:", e);
+    } finally {
+      setLoadingPlan(false);
+    }
+  };
+
+  const handleCompleteWorkout = async () => {
+    if (!premiumPlan || !user) return;
+    
+    setLoadingPlan(true);
+    try {
+      const kcal = await calculateWorkoutCalories(premiumPlan, user);
+      addExtraCalories(kcal, `Treino: ${premiumPlan.title}`);
+      
+      // Feedback visual ou navegação
+      setActiveTab(Tab.REPORT);
+    } catch (e) {
+      console.error("Erro ao calcular calorias do treino:", e);
+      addExtraCalories(300, `Treino: ${premiumPlan.title}`);
+      setActiveTab(Tab.REPORT);
+    } finally {
+      setLoadingPlan(false);
+    }
+  };
   
   const lastStepTime = useRef<number>(0);
   const filteredAcc = useRef<number>(9.8);
@@ -49,6 +142,7 @@ const App: React.FC = () => {
   const AVG_ALPHA = 0.05;
   const STEP_THRESHOLD = 1.15;
 
+  // 1. CARREGAMENTO INICIAL DA SESSÃO
   useEffect(() => {
     const savedProfile = localStorage.getItem(STORAGE_KEYS.PROFILE);
     if (savedProfile) {
@@ -57,181 +151,202 @@ const App: React.FC = () => {
         setUser(parsedUser);
         setIsLoggedIn(true);
         setActiveTab(Tab.DASHBOARD);
+        
+        // Carrega dados vinculados ao ID do usuário
+        const userStatsKey = `${STORAGE_KEYS.STATS}_${parsedUser.id}`;
+        const userHistoryKey = `${STORAGE_KEYS.WORKOUT_HISTORY}_${parsedUser.id}`;
+        const userPlanKey = `lifesteps_premium_plan_${parsedUser.id}`;
+        
+        const savedStats = localStorage.getItem(userStatsKey);
+        const today = new Date().toDateString();
+        if (savedStats) {
+          const parsed = JSON.parse(savedStats);
+          if (parsed.date === today) setStats(parsed.data);
+        }
+
+        const savedHistory = localStorage.getItem(userHistoryKey);
+        if (savedHistory) setWorkoutHistory(JSON.parse(savedHistory));
+
+        const savedPlan = localStorage.getItem(userPlanKey);
+        if (savedPlan) setPremiumPlan(JSON.parse(savedPlan));
+
       } catch (e) {
         localStorage.removeItem(STORAGE_KEYS.PROFILE);
       }
     }
-
-    if ("Notification" in window) {
-      setNotificationsAllowed(Notification.permission === "granted");
-    }
-    const savedHistory = localStorage.getItem(STORAGE_KEYS.WORKOUT_HISTORY);
-    if (savedHistory) setWorkoutHistory(JSON.parse(savedHistory));
-    
     const savedTheme = localStorage.getItem('app_theme') as 'dark' | 'light';
     if (savedTheme) setTheme(savedTheme || 'dark');
   }, []);
 
+  // 2. SINCRONIZAÇÃO AUTOMÁTICA DO PERFIL (PREMIUM, METAS, ETC)
   useEffect(() => {
-    if (theme === 'light') {
-      document.body.classList.add('light-mode');
-      document.body.classList.add('light-theme');
-    } else {
-      document.body.classList.remove('light-mode');
-      document.body.classList.remove('light-theme');
+    if (user) {
+      localStorage.setItem(STORAGE_KEYS.PROFILE, JSON.stringify(user));
+      
+      // Atualiza na "lista de usuários registrados" para persistir entre logins
+      const storedUsers = JSON.parse(localStorage.getItem('registered_users') || '[]');
+      const updatedUsers = storedUsers.map((u: UserProfile) => u.id === user.id ? user : u);
+      localStorage.setItem('registered_users', JSON.stringify(updatedUsers));
     }
+  }, [user]);
+
+  // 3. PERSISTÊNCIA DE STATS VINCULADA AO USUÁRIO
+  useEffect(() => {
+    if (user && isLoggedIn) {
+      const today = new Date().toDateString();
+      // Salva stats do dia atual
+      localStorage.setItem(`${STORAGE_KEYS.STATS}_${user.id}`, JSON.stringify({
+        date: today,
+        data: stats
+      }));
+
+      // Atualiza histórico diário para o gráfico semanal
+      const historyKey = `lifesteps_daily_history_${user.id}`;
+      const history = JSON.parse(localStorage.getItem(historyKey) || '{}');
+      history[today] = stats;
+
+      // Mantém apenas os últimos 14 dias para não sobrecarregar o localStorage
+      const dates = Object.keys(history);
+      if (dates.length > 14) {
+        const sortedDates = dates.sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
+        const toDelete = sortedDates.slice(0, dates.length - 14);
+        toDelete.forEach(d => delete history[d]);
+      }
+
+      localStorage.setItem(historyKey, JSON.stringify(history));
+    }
+  }, [stats, user, isLoggedIn]);
+
+  // 3.5. RESET DIÁRIO AUTOMÁTICO (Enquanto o app está aberto)
+  useEffect(() => {
+    if (!isLoggedIn || !user) return;
+
+    const checkDateChange = () => {
+      const today = new Date().toDateString();
+      const userStatsKey = `${STORAGE_KEYS.STATS}_${user.id}`;
+      const savedStats = localStorage.getItem(userStatsKey);
+      
+      if (savedStats) {
+        try {
+          const parsed = JSON.parse(savedStats);
+          if (parsed.date !== today) {
+            // O dia mudou, resetar stats para o novo dia
+            setStats({ steps: 0, calories: 0, distance: 0, activeTime: 0, waterIntake: 0 });
+          }
+        } catch (e) {
+          console.error("Erro ao verificar mudança de data:", e);
+        }
+      }
+    };
+
+    // Verifica a cada minuto se o dia mudou
+    const interval = setInterval(checkDateChange, 60000);
+    return () => clearInterval(interval);
+  }, [isLoggedIn, user]);
+
+  // 4. PERSISTÊNCIA DE HISTÓRICO VINCULADA AO USUÁRIO
+  useEffect(() => {
+    if (user && isLoggedIn) {
+      localStorage.setItem(`${STORAGE_KEYS.WORKOUT_HISTORY}_${user.id}`, JSON.stringify(workoutHistory));
+    }
+  }, [workoutHistory, user, isLoggedIn]);
+
+  // 5. PERSISTÊNCIA DO PLANO PREMIUM
+  useEffect(() => {
+    if (user) {
+      const key = `lifesteps_premium_plan_${user.id}`;
+      if (premiumPlan) {
+        localStorage.setItem(key, JSON.stringify(premiumPlan));
+      } else if (isLoggedIn) {
+        localStorage.removeItem(key);
+      }
+    }
+  }, [premiumPlan, user, isLoggedIn]);
+
+  // 6. LÓGICA DE NOTIFICAÇÃO DE ÁGUA (E-MAIL)
+  useEffect(() => {
+    if (!isLoggedIn || !user?.waterNotificationsEnabled || !user?.email) return;
+
+    const WATER_INTERVAL = 3 * 60 * 60 * 1000; // 3 horas
+    const checkNotification = () => {
+      const lastNotify = localStorage.getItem(`last_water_notify_${user.id}`);
+      const now = Date.now();
+
+      if (!lastNotify || (now - parseInt(lastNotify)) >= WATER_INTERVAL) {
+        console.log(`[SIMULAÇÃO E-MAIL] Enviando lembrete de água para: ${user.email}`);
+        // Aqui seria a chamada para uma API real de e-mail
+        // fetch('/api/send-water-reminder', { method: 'POST', body: JSON.stringify({ email: user.email }) });
+        
+        localStorage.setItem(`last_water_notify_${user.id}`, now.toString());
+      }
+    };
+
+    // Verifica ao carregar e a cada minuto
+    checkNotification();
+    const interval = setInterval(checkNotification, 60000);
+    return () => clearInterval(interval);
+  }, [isLoggedIn, user?.waterNotificationsEnabled, user?.email, user?.id]);
+
+  useEffect(() => {
+    document.body.className = theme === 'light' ? 'light-mode light-theme' : '';
     localStorage.setItem('app_theme', theme);
   }, [theme]);
 
-  // Busca conselho da IA quando no dashboard ou quando os stats mudam
-  useEffect(() => {
-    if (isLoggedIn && user && activeTab === Tab.DASHBOARD) {
-      const updateAdvice = async () => {
-        const advice = await getHealthAdvice(stats, user);
-        setAiAdvice(advice);
-      };
-      const timer = setTimeout(updateAdvice, 5000);
-      return () => clearTimeout(timer);
-    }
-  }, [stats.steps, stats.waterIntake, isLoggedIn, user, activeTab]);
-
-  // Busca conteúdo premium para abas de treino ou dieta
-  useEffect(() => {
-    if (isLoggedIn && user?.isPremium && (activeTab === Tab.WORKOUTS || activeTab === Tab.DIET)) {
-      const fetchPremiumContent = async () => {
-        setPremiumContent("Gerando seu plano exclusivo com IA...");
-        const type = activeTab === Tab.WORKOUTS ? 'workout' : 'diet';
-        const content = await getFitnessContent(type, user.goal);
-        setPremiumContent(content);
-      };
-      fetchPremiumContent();
-    }
-  }, [activeTab, isLoggedIn, user]);
-
-  const handleToggleTheme = () => {
-    setTheme(prev => prev === 'dark' ? 'light' : 'dark');
-  };
-
-  const handleToggleNotifications = async () => {
-    if (!("Notification" in window)) {
-      alert("Seu navegador não suporta notificações.");
-      return;
-    }
-    const permission = await Notification.requestPermission();
-    setNotificationsAllowed(permission === "granted");
-  };
-
-  const handleAuth = (e: React.FormEvent) => {
-    e.preventDefault();
-    setAuthError(null);
-    
-    const storedUsersString = localStorage.getItem('registered_users');
-    const storedUsers = storedUsersString ? JSON.parse(storedUsersString) : [];
-
-    if (authMode === 'signup') {
-      if (!formData.email || !formData.password || !formData.confirmPassword || !formData.name) {
-        setAuthError("Preencha todos os campos obrigatórios.");
-        return;
-      }
-      if (formData.password !== formData.confirmPassword) {
-        setAuthError("As senhas não coincidem!");
-        return;
-      }
-      if (formData.password.length < 6) {
-        setAuthError("A senha deve ter pelo menos 6 caracteres.");
-        return;
-      }
-      
-      const emailExists = storedUsers.some((u: any) => u.email === formData.email);
-      if (emailExists) {
-        setAuthError("Este e-mail já está cadastrado.");
-        return;
-      }
-
-      const newUser: UserProfile = {
-        id: Date.now().toString(),
-        name: formData.name,
-        email: formData.email,
-        password: formData.password,
-        age: parseInt(formData.age) || 25,
-        weight: parseFloat(formData.weight) || 70,
-        height: parseFloat(formData.height) || 170,
-        goal: formData.goal,
-        stepGoal: DEFAULT_GOAL,
-        gender: 'other',
-        isPremium: false
-      };
-      
-      storedUsers.push(newUser);
-      localStorage.setItem('registered_users', JSON.stringify(storedUsers));
-      loginUser(newUser);
-    } else {
-      const existingUser = storedUsers.find((u: any) => u.email === formData.email && u.password === formData.password);
-      if (existingUser) {
-        loginUser(existingUser);
-      } else {
-        setAuthError("E-mail ou senha incorretos.");
-      }
-    }
-  };
-
-  const loginUser = (userProfile: UserProfile) => {
-    setUser(userProfile);
-    setIsLoggedIn(true);
-    setActiveTab(Tab.DASHBOARD);
-    localStorage.setItem(STORAGE_KEYS.PROFILE, JSON.stringify(userProfile));
-    setFormData({
-      email: '', password: '', confirmPassword: '', name: '',
-      age: '', weight: '', height: '', goal: 'maintenance'
-    });
-  };
-
-  const handleUpgrade = () => {
-    if (user) {
-      const updatedUser = { ...user, isPremium: true };
-      setUser(updatedUser);
-      localStorage.setItem(STORAGE_KEYS.PROFILE, JSON.stringify(updatedUser));
-      
-      const storedUsersString = localStorage.getItem('registered_users');
-      if (storedUsersString) {
-        try {
-          const storedUsers = JSON.parse(storedUsersString);
-          const index = storedUsers.findIndex((u: any) => u.email === user.email);
-          if (index !== -1) {
-            storedUsers[index] = updatedUser;
-            localStorage.setItem('registered_users', JSON.stringify(storedUsers));
-          }
-        } catch (e) {
-          console.error("Erro ao atualizar lista de usuários", e);
-        }
-      }
-      setActiveTab(Tab.DASHBOARD);
-    }
-  };
-
-  const handleLogout = () => {
-    setIsLoggedIn(false);
-    setAuthMode('login');
-    setActiveTab(Tab.LOGIN);
-    setUser(null);
-    localStorage.removeItem(STORAGE_KEYS.PROFILE);
-  };
-
   const addStep = useCallback(() => {
-    setStats(prev => ({
-      ...prev,
-      steps: prev.steps + 1,
-      calories: prev.calories + CALORIES_PER_STEP,
-      distance: prev.distance + DISTANCE_PER_STEP,
-      activeTime: prev.activeTime + (TIME_PER_STEP * 60)
-    }));
+    setStats(prev => {
+      const newStats = {
+        ...prev,
+        steps: prev.steps + 1,
+        calories: prev.calories + CALORIES_PER_STEP,
+        distance: prev.distance + DISTANCE_PER_STEP,
+        activeTime: prev.activeTime + (TIME_PER_STEP * 60)
+      };
+      
+      // Persistência imediata para evitar perda em segundo plano
+      if (user) {
+        localStorage.setItem(`${STORAGE_KEYS.STATS}_${user.id}`, JSON.stringify({
+          date: new Date().toDateString(),
+          data: newStats
+        }));
+      }
+      
+      return newStats;
+    });
+  }, [user]);
+
+  const addExtraCalories = useCallback((kcal: number, activityName: string) => {
+    setStats(prev => ({ ...prev, calories: prev.calories + kcal }));
+    
+    // Adiciona ao histórico de treinos
+    const newWorkout: WorkoutHistoryItem = {
+      id: Date.now().toString(),
+      name: activityName,
+      duration: 30, // Duração estimada padrão se não informada
+      date: new Date().toISOString(),
+      caloriesBurned: kcal
+    };
+    setWorkoutHistory(prev => [newWorkout, ...prev]);
   }, []);
 
-  const addExtraCalories = useCallback((kcal: number) => {
-    setStats(prev => ({ ...prev, calories: prev.calories + kcal }));
+  const [isOnline, setIsOnline] = React.useState(navigator.onLine);
+
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
   }, []);
 
   const handleMotion = useCallback((event: DeviceMotionEvent) => {
+    if (!isTracking) return;
+    
+    // Se estiver offline e não for premium, não conta passos
+    if (!isOnline && user && !user.isPremium) return;
+
     const acc = event.accelerationIncludingGravity;
     if (!acc || acc.x === null || acc.y === null || acc.z === null) return;
     
@@ -241,7 +356,6 @@ const App: React.FC = () => {
     const diff = filteredAcc.current - movingAvgAcc.current;
     const now = Date.now();
 
-    // Detecção de impacto via acelerômetro
     if (diff > STEP_THRESHOLD && !stepDetected.current) {
       if (now - lastStepTime.current > 330) {
         addStep();
@@ -251,151 +365,224 @@ const App: React.FC = () => {
     } else if (diff < (STEP_THRESHOLD * 0.5)) {
       stepDetected.current = false;
     }
-  }, [addStep]);
+  }, [addStep, isTracking]);
+
+  useEffect(() => {
+    if (isTracking) {
+      window.addEventListener('devicemotion', handleMotion);
+    }
+    return () => {
+      window.removeEventListener('devicemotion', handleMotion);
+    };
+  }, [isTracking, handleMotion]);
+
+  const handleAuth = (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthError(null);
+    const storedUsers = JSON.parse(localStorage.getItem('registered_users') || '[]');
+
+    if (authMode === 'forgot-password') {
+      const existingUser = storedUsers.find((u: any) => u.email === formData.email);
+      if (existingUser) {
+        setAuthError(null);
+        // Em um app real, enviaríamos um e-mail. Aqui, vamos apenas resetar para uma senha padrão ou mostrar a atual para fins de demo.
+        // Vamos permitir que o usuário defina uma nova senha se ele souber o e-mail.
+        if (formData.password) {
+          existingUser.password = formData.password;
+          localStorage.setItem('registered_users', JSON.stringify(storedUsers));
+          setAuthError("Senha redefinida com sucesso! Faça login.");
+          setAuthMode('login');
+        } else {
+          setAuthError("E-mail encontrado! Digite sua nova senha abaixo.");
+        }
+      } else {
+        setAuthError("E-mail não encontrado em nossa base.");
+      }
+      return;
+    }
+
+    if (authMode === 'signup') {
+      if (formData.password !== formData.confirmPassword) {
+        setAuthError("As senhas não coincidem!");
+        return;
+      }
+      
+      const emailExists = storedUsers.some((u: any) => u.email === formData.email);
+      if (emailExists) {
+        setAuthError("Este e-mail já está em uso!");
+        return;
+      }
+
+      const newUser: UserProfile = {
+        id: Date.now().toString(), name: formData.name, email: formData.email,
+        password: formData.password, age: parseInt(formData.age) || 25,
+        weight: parseFloat(formData.weight) || 70, height: parseFloat(formData.height) || 170,
+        goal: formData.goal, fitnessLevel: formData.fitnessLevel, stepGoal: DEFAULT_GOAL, gender: 'other', isPremium: false,
+        waterNotificationsEnabled: false
+      };
+      storedUsers.push(newUser);
+      localStorage.setItem('registered_users', JSON.stringify(storedUsers));
+      loginUser(newUser);
+    } else {
+      const existingUser = storedUsers.find((u: any) => u.email === formData.email && u.password === formData.password);
+      if (existingUser) loginUser(existingUser);
+      else setAuthError("E-mail ou senha incorretos.");
+    }
+  };
+
+  const loginUser = (userProfile: UserProfile) => {
+    setUser(userProfile);
+    setIsLoggedIn(true);
+    setActiveTab(Tab.DASHBOARD);
+    localStorage.setItem(STORAGE_KEYS.PROFILE, JSON.stringify(userProfile));
+    
+    // Carregar dados específicos após login
+    const userStatsKey = `${STORAGE_KEYS.STATS}_${userProfile.id}`;
+    const userHistoryKey = `${STORAGE_KEYS.WORKOUT_HISTORY}_${userProfile.id}`;
+    
+    const savedStats = localStorage.getItem(userStatsKey);
+    const today = new Date().toDateString();
+    if (savedStats) {
+      const parsed = JSON.parse(savedStats);
+      if (parsed.date === today) setStats(parsed.data);
+      else setStats({ steps: 0, calories: 0, distance: 0, activeTime: 0, waterIntake: 0 });
+    } else {
+      setStats({ steps: 0, calories: 0, distance: 0, activeTime: 0, waterIntake: 0 });
+    }
+
+    const savedHistory = localStorage.getItem(userHistoryKey);
+    setWorkoutHistory(savedHistory ? JSON.parse(savedHistory) : []);
+
+    const userPlanKey = `lifesteps_premium_plan_${userProfile.id}`;
+    const savedPlan = localStorage.getItem(userPlanKey);
+    setPremiumPlan(savedPlan ? JSON.parse(savedPlan) : null);
+  };
+
+  const handleLogout = () => {
+    setIsLoggedIn(false);
+    setAuthMode('login');
+    setActiveTab(Tab.LOGIN);
+    setUser(null);
+    localStorage.removeItem(STORAGE_KEYS.PROFILE);
+    setIsTracking(false);
+    setStats({ steps: 0, calories: 0, distance: 0, activeTime: 0, waterIntake: 0 });
+    setWorkoutHistory([]);
+    setPremiumPlan(null);
+  };
 
   const toggleTracking = () => {
     if (!isTracking) {
+      const startTracking = () => setIsTracking(true);
       if (typeof (DeviceMotionEvent as any).requestPermission === 'function') {
         (DeviceMotionEvent as any).requestPermission().then((state: string) => {
-          if (state === 'granted') {
-            window.addEventListener('devicemotion', handleMotion);
-            setIsTracking(true);
-          }
+          if (state === 'granted') startTracking();
         });
       } else {
-        window.addEventListener('devicemotion', handleMotion);
-        setIsTracking(true);
+        startTracking();
       }
     } else {
-      window.removeEventListener('devicemotion', handleMotion);
       setIsTracking(false);
     }
   };
 
-  useEffect(() => {
-    return () => {
-      window.removeEventListener('devicemotion', handleMotion);
-    };
-  }, [handleMotion]);
+  const getWeekData = useCallback(() => {
+    if (!user) return [];
+    
+    const days = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+    const today = new Date();
+    const currentDay = today.getDay(); // 0 (Dom) a 6 (Sáb)
+    
+    // Calcula o domingo da semana atual
+    const sunday = new Date(today);
+    sunday.setDate(today.getDate() - currentDay);
+    
+    const weekData = [];
+    const historyKey = `lifesteps_daily_history_${user.id}`;
+    const history = JSON.parse(localStorage.getItem(historyKey) || '{}');
+    
+    for (let i = 0; i < 7; i++) {
+      const date = new Date(sunday);
+      date.setDate(sunday.getDate() + i);
+      const dateStr = date.toDateString();
+      
+      let steps = 0;
+      if (dateStr === today.toDateString()) {
+        steps = stats.steps;
+      } else {
+        steps = history[dateStr]?.steps || 0;
+      }
+      
+      weekData.push({
+        day: days[i],
+        steps: steps,
+        isToday: dateStr === today.toDateString()
+      });
+    }
+    return weekData;
+  }, [user, stats.steps]);
 
   const isDark = theme === 'dark';
 
   if (!isLoggedIn) {
     return (
-      <div className={`min-h-screen flex items-center justify-center p-6 py-12 overflow-y-auto transition-colors duration-300 ${isDark ? 'bg-[#050505]' : 'bg-white'}`}>
+      <div className={`min-h-screen flex items-center justify-center p-6 py-12 transition-colors duration-300 ${isDark ? 'bg-[#050505]' : 'bg-white'}`}>
         <div className={`w-full max-w-sm glass-card rounded-[40px] p-8 border ${isDark ? 'border-white/10' : 'border-black/10 shadow-2xl'}`}>
           <div className="text-center mb-8">
              <div className="w-16 h-16 bg-blue-600 rounded-2xl mx-auto flex items-center justify-center mb-4 shadow-[0_0_20px_rgba(37,99,235,0.4)]">
                 <i className="fa-solid fa-shoe-prints text-white text-3xl"></i>
              </div>
              <h1 className={`text-2xl font-black ${isDark ? 'text-white' : 'text-black'}`}>lifesteps</h1>
-             <p className={`${isDark ? 'text-white/40' : 'text-black/60'} text-xs mt-1 font-bold`}>Sua jornada fitness começa aqui</p>
+             <p className={`${isDark ? 'text-white/40' : 'text-black/60'} text-[10px] mt-1 font-black uppercase tracking-[0.2em]`}>Pedometer de Alta Performance</p>
           </div>
-
           <div className={`flex ${isDark ? 'bg-white/5' : 'bg-black/5'} p-1 rounded-xl mb-6`}>
-            <button 
-              onClick={() => { setAuthMode('login'); setAuthError(null); }}
-              className={`flex-1 py-2 text-[10px] uppercase tracking-widest font-black rounded-lg transition-all ${authMode === 'login' ? 'bg-blue-600 text-white shadow-lg' : isDark ? 'text-white/30' : 'text-black/40'}`}
-            >
-              Entrar
-            </button>
-            <button 
-              onClick={() => { setAuthMode('signup'); setAuthError(null); }}
-              className={`flex-1 py-2 text-[10px] uppercase tracking-widest font-black rounded-lg transition-all ${authMode === 'signup' ? 'bg-blue-600 text-white shadow-lg' : isDark ? 'text-white/30' : 'text-black/40'}`}
-            >
-              Criar Conta
-            </button>
+            {['login', 'signup', 'forgot-password'].map(mode => (
+              <button key={mode} onClick={() => { setAuthMode(mode as any); setAuthError(null); }} className={`flex-1 py-2 text-[8px] uppercase tracking-widest font-black rounded-lg transition-all ${authMode === mode ? 'bg-blue-600 text-white shadow-lg' : isDark ? 'text-white/30' : 'text-black/40'}`}>
+                {mode === 'login' ? 'Entrar' : mode === 'signup' ? 'Cadastrar' : 'Esqueci'}
+              </button>
+            ))}
           </div>
-
           <form onSubmit={handleAuth} className="space-y-4">
+            {authMode === 'forgot-password' && (
+              <p className={`text-[10px] text-center mb-4 ${isDark ? 'text-white/40' : 'text-black/60'} font-bold uppercase tracking-widest`}>
+                Digite seu e-mail para redefinir sua senha
+              </p>
+            )}
             {authMode === 'signup' && (
               <>
-                <input 
-                  type="text" 
-                  placeholder="Nome Completo" 
-                  className={`w-full ${isDark ? 'bg-white/5 border-white/10 text-white' : 'bg-white border-black/10 text-black shadow-sm'} border rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-600`} 
-                  value={formData.name} 
-                  onChange={e => setFormData({...formData, name: e.target.value})} 
-                  required 
-                />
+                <input type="text" placeholder="Nome" className={`w-full ${isDark ? 'bg-white/5 border-white/10 text-white' : 'bg-white border-black/10 text-black'} border rounded-xl px-4 py-3 text-sm focus:outline-none`} value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} required />
                 <div className="grid grid-cols-2 gap-3">
-                  <input 
-                    type="number" 
-                    placeholder="Idade" 
-                    className={`w-full ${isDark ? 'bg-white/5 border-white/10 text-white' : 'bg-white border-black/10 text-black shadow-sm'} border rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-600`} 
-                    value={formData.age} 
-                    onChange={e => setFormData({...formData, age: e.target.value})} 
-                    required 
-                  />
-                  <input 
-                    type="number" 
-                    placeholder="Peso (kg)" 
-                    className={`w-full ${isDark ? 'bg-white/5 border-white/10 text-white' : 'bg-white border-black/10 text-black shadow-sm'} border rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-600`} 
-                    value={formData.weight} 
-                    onChange={e => setFormData({...formData, weight: e.target.value})} 
-                    required 
-                  />
+                  <input type="number" placeholder="Idade" className={`w-full ${isDark ? 'bg-white/5 border-white/10 text-white' : 'bg-white border-black/10 text-black'} border rounded-xl px-4 py-3 text-sm focus:outline-none`} value={formData.age} onChange={e => setFormData({...formData, age: e.target.value})} required />
+                  <input type="number" placeholder="Peso (kg)" className={`w-full ${isDark ? 'bg-white/5 border-white/10 text-white' : 'bg-white border-black/10 text-black'} border rounded-xl px-4 py-3 text-sm focus:outline-none`} value={formData.weight} onChange={e => setFormData({...formData, weight: e.target.value})} required />
                 </div>
-                <input 
-                  type="number" 
-                  placeholder="Altura (cm)" 
-                  className={`w-full ${isDark ? 'bg-white/5 border-white/10 text-white' : 'bg-white border-black/10 text-black shadow-sm'} border rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-600`} 
-                  value={formData.height} 
-                  onChange={e => setFormData({...formData, height: e.target.value})} 
-                  required 
-                />
-                <select 
-                  className={`w-full ${isDark ? 'bg-white/10 border-white/10 text-white' : 'bg-white border-black/10 text-black shadow-sm'} border rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-600 appearance-none`} 
-                  value={formData.goal} 
-                  onChange={e => setFormData({...formData, goal: e.target.value as UserGoal})}
-                >
+                <input type="number" placeholder="Altura (cm)" className={`w-full ${isDark ? 'bg-white/5 border-white/10 text-white' : 'bg-white border-black/10 text-black'} border rounded-xl px-4 py-3 text-sm focus:outline-none`} value={formData.height} onChange={e => setFormData({...formData, height: e.target.value})} required />
+                <select className={`w-full ${isDark ? 'bg-white/10 border-white/10 text-white' : 'bg-white border-black/10 text-black'} border rounded-xl px-4 py-3 text-sm focus:outline-none appearance-none font-bold`} value={formData.goal} onChange={e => setFormData({...formData, goal: e.target.value as UserGoal})}>
                   <option value="weight_loss">Emagrecer</option>
                   <option value="muscle_gain">Ganhar Massa</option>
-                  <option value="maintenance">Manter Forma</option>
+                  <option value="maintenance">Manter a Forma</option>
+                </select>
+                <select className={`w-full ${isDark ? 'bg-white/10 border-white/10 text-white' : 'bg-white border-black/10 text-black'} border rounded-xl px-4 py-3 text-sm focus:outline-none appearance-none font-bold`} value={formData.fitnessLevel} onChange={e => setFormData({...formData, fitnessLevel: e.target.value as FitnessLevel})}>
+                  <option value="very_light">Muito Leve</option>
+                  <option value="light">Leve</option>
+                  <option value="moderate">Moderado</option>
+                  <option value="hard">Difícil</option>
+                  <option value="very_hard">Muito Difícil</option>
                 </select>
               </>
             )}
-
-            <input 
-              type="email" 
-              placeholder="E-mail" 
-              className={`w-full ${isDark ? 'bg-white/5 border-white/10 text-white' : 'bg-white border-black/10 text-black shadow-sm'} border rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-600`} 
-              value={formData.email} 
-              onChange={e => setFormData({...formData, email: e.target.value})} 
-              required 
-            />
-            <input 
-              type="password" 
-              placeholder="Senha" 
-              className={`w-full ${isDark ? 'bg-white/5 border-white/10 text-white' : 'bg-white border-black/10 text-black shadow-sm'} border rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-600`} 
-              value={formData.password} 
-              onChange={e => setFormData({...formData, password: e.target.value})} 
-              required 
-            />
-            
-            {authMode === 'signup' && (
-              <input 
-                type="password" 
-                placeholder="Confirmar Senha" 
-                className={`w-full ${isDark ? 'bg-white/5 border-white/10 text-white' : 'bg-white border-black/10 text-black shadow-sm'} border rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-600`} 
-                value={formData.confirmPassword} 
-                onChange={e => setFormData({...formData, confirmPassword: e.target.value})} 
-                required 
-              />
+            <input type="email" placeholder="E-mail" className={`w-full ${isDark ? 'bg-white/5 border-white/10 text-white' : 'bg-white border-black/10 text-black'} border rounded-xl px-4 py-3 text-sm focus:outline-none`} value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} required />
+            {(authMode === 'login' || authMode === 'signup' || (authMode === 'forgot-password' && authError?.includes("E-mail encontrado"))) && (
+              <input type="password" placeholder={authMode === 'forgot-password' ? "Nova Senha" : "Senha"} className={`w-full ${isDark ? 'bg-white/5 border-white/10 text-white' : 'bg-white border-black/10 text-black'} border rounded-xl px-4 py-3 text-sm focus:outline-none`} value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} required />
             )}
-
-            {authError && (
-              <div className="bg-red-600/10 border border-red-600/20 py-3 px-4 rounded-xl">
-                <p className="text-red-600 text-[11px] font-black text-center uppercase tracking-tighter">
-                  <i className="fa-solid fa-triangle-exclamation mr-2"></i>
-                  {authError}
-                </p>
-              </div>
-            )}
-
-            <button type="submit" className="w-full py-4 bg-blue-600 hover:bg-blue-700 rounded-xl text-white font-black uppercase tracking-widest transition-all shadow-xl active:scale-95">
-              {authMode === 'login' ? 'Entrar Agora' : 'Finalizar Cadastro'}
+            {authMode === 'signup' && <input type="password" placeholder="Confirmar Senha" className={`w-full ${isDark ? 'bg-white/5 border-white/10 text-white' : 'bg-white border-black/10 text-black'} border rounded-xl px-4 py-3 text-sm focus:outline-none`} value={formData.confirmPassword} onChange={e => setFormData({...formData, confirmPassword: e.target.value})} required />}
+            {authError && <p className={`text-center text-[10px] font-black uppercase tracking-tighter py-2 rounded-lg ${authError.includes("sucesso") || authError.includes("encontrado") ? 'text-emerald-600 bg-emerald-600/10' : 'text-red-600 bg-red-600/10'}`}>{authError}</p>}
+            <button type="submit" className="w-full py-4 bg-blue-600 hover:bg-blue-700 rounded-xl text-white font-black uppercase tracking-widest transition-all shadow-xl">
+              {authMode === 'login' ? 'Entrar Agora' : authMode === 'signup' ? 'Finalizar Cadastro' : 'Redefinir Senha'}
             </button>
+            {authMode === 'login' && (
+              <button type="button" onClick={() => { setAuthMode('forgot-password'); setAuthError(null); }} className={`w-full text-[10px] font-black uppercase tracking-widest ${isDark ? 'text-white/20 hover:text-white/40' : 'text-black/30 hover:text-black/50'} transition-all mt-2`}>
+                Esqueceu a senha?
+              </button>
+            )}
           </form>
         </div>
       </div>
@@ -403,57 +590,236 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className={`flex flex-col min-h-screen max-w-md mx-auto relative pb-24 overflow-hidden transition-colors duration-300 ${isDark ? 'bg-[#050505]' : 'bg-white'}`}>
+    <div className={`flex flex-col min-h-screen max-w-md mx-auto relative pb-24 transition-colors duration-300 ${isDark ? 'bg-[#050505]' : 'bg-white'}`}>
       <header className="p-6 flex justify-between items-center">
         <div>
           <h1 className={`text-2xl font-black ${isDark ? 'text-white' : 'text-black'}`}>life<span className="text-blue-600">steps</span></h1>
           <div className="flex items-center gap-2 mt-1">
-            {user?.isPremium && <span className="text-yellow-600 text-[8px] font-black border border-yellow-600/30 px-1.5 rounded uppercase tracking-tighter">Premium</span>}
-            <span className={`text-[8px] font-black px-1.5 py-0.5 rounded border ${isTracking ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600' : 'bg-black/5 border-black/5 text-black/30'} uppercase transition-all`}>
-              <i className={`fa-solid fa-sensor mr-1 ${isTracking && 'animate-pulse'}`}></i>
-              {isTracking ? 'Monitorando' : 'Sensor Desligado'}
-            </span>
+             <span className={`text-[8px] font-black px-1.5 py-0.5 rounded border transition-all ${isTracking ? 'bg-blue-600/10 border-blue-500/20 text-blue-600' : 'bg-black/5 border-black/10 text-black/20'} uppercase`}>
+               <i className={`fa-solid fa-person-walking mr-1 ${isTracking && 'animate-bounce'}`}></i>
+               {isTracking ? 'Monitoramento Ativo (Segundo Plano)' : 'Pausado'}
+             </span>
+             {!isOnline && (
+               <span className={`text-[8px] font-black px-1.5 py-0.5 rounded border ${user?.isPremium ? 'bg-emerald-600/10 border-emerald-500/20 text-emerald-600' : 'bg-red-600/10 border-red-500/20 text-red-600'} uppercase`}>
+                 <i className={`fa-solid ${user?.isPremium ? 'fa-cloud-slash' : 'fa-triangle-exclamation'} mr-1`}></i>
+                 {user?.isPremium ? 'Modo Offline Ativo' : 'Sem Conexão'}
+               </span>
+             )}
           </div>
         </div>
-        <button onClick={handleLogout} className={`w-10 h-10 rounded-full ${isDark ? 'bg-white/5 border-white/10' : 'bg-black/5 border-black/10'} flex items-center justify-center border active:scale-90 transition-all`}>
-          <i className={`fa-solid fa-right-from-bracket ${isDark ? 'text-white/40' : 'text-black/60'} text-xs`}></i>
+        <button onClick={handleLogout} className={`w-10 h-10 rounded-full ${isDark ? 'bg-white/5 border-white/10' : 'bg-black/5 border-black/10'} flex items-center justify-center border transition-all`}>
+          <i className={`fa-solid fa-power-off ${isDark ? 'text-white/40' : 'text-black/60'} text-xs`}></i>
         </button>
       </header>
 
-      {activeTab === Tab.DASHBOARD && (
-        <main className="flex-1 overflow-y-auto px-4 pb-4">
-          <StepCircle current={stats.steps} goal={user?.stepGoal || DEFAULT_GOAL} isDark={isDark} />
-          <StatsGrid stats={stats} isDark={isDark} />
-          
-          <div className={`bg-gradient-to-br from-blue-600/20 to-indigo-600/20 rounded-2xl p-4 mb-8 mx-4 border border-blue-500/20 flex gap-4`}>
-            <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center shrink-0">
-               <i className="fa-solid fa-robot text-white text-xs"></i>
-            </div>
-            <p className={`${isDark ? 'text-white' : 'text-black'} text-sm italic font-medium`}>"{aiAdvice}"</p>
+      {!isOnline && !user?.isPremium && (
+        <div className="mx-6 mb-4 p-4 bg-red-600/10 border border-red-600/20 rounded-2xl flex items-center gap-4 animate-in slide-in-from-top-4 duration-500">
+          <div className="w-10 h-10 rounded-xl bg-red-600 flex items-center justify-center text-white shrink-0">
+            <i className="fa-solid fa-crown"></i>
           </div>
+          <div>
+            <p className="text-red-600 text-[10px] font-black uppercase tracking-widest mb-0.5">Recurso Premium</p>
+            <p className={`text-[9px] ${isDark ? 'text-white/60' : 'text-black/60'} leading-tight`}>O contador de passos offline é exclusivo para membros PRO. Conecte-se à internet para continuar.</p>
+          </div>
+        </div>
+      )}
+
+      {activeTab === Tab.DASHBOARD && (
+        <main className="flex-1 overflow-y-auto px-4">
+          <StepCircle current={stats.steps} goal={user?.stepGoal || DEFAULT_GOAL} isDark={isDark} />
           
+          <StatsGrid stats={stats} isDark={isDark} />
           {user?.isPremium && <ActivityCalculator profile={user} onAddCalories={addExtraCalories} isPremium={user.isPremium} isDark={isDark} />}
-          <WaterTracker current={stats.waterIntake} onAdd={(a) => setStats(s => ({...s, waterIntake: s.waterIntake + a}))} notificationsEnabled={notificationsAllowed} onToggleNotifications={handleToggleNotifications} isDark={isDark} />
-          <button onClick={addStep} className={`w-full py-2 border border-dashed ${isDark ? 'border-white/10 text-white/5' : 'border-black/10 text-black/20'} rounded-xl text-[8px] mb-4 uppercase hover:text-blue-600 transition-colors`}>Testar Passo Manualmente</button>
+          <WaterTracker 
+            current={stats.waterIntake} 
+            onAdd={(a) => setStats(s => ({...s, waterIntake: s.waterIntake + a}))} 
+            onRemove={(a) => setStats(s => ({...s, waterIntake: Math.max(0, s.waterIntake - a)}))}
+            notificationsEnabled={notificationsAllowed} 
+            onToggleNotifications={() => setNotificationsAllowed(!notificationsAllowed)} 
+            isDark={isDark} 
+          />
         </main>
       )}
 
-      {(activeTab === Tab.WORKOUTS || activeTab === Tab.DIET) && (
+      {activeTab === Tab.WORKOUTS && (
         <main className="flex-1 px-4 overflow-y-auto pb-8">
           {!user?.isPremium ? (
-            <PremiumAdvantagesPage onUpgrade={handleUpgrade} isDark={isDark} />
+            <PremiumAdvantagesPage onUpgrade={() => { if(user) { setUser({...user, isPremium: true}); } }} isDark={isDark} />
           ) : (
             <div className="animate-in fade-in slide-in-from-bottom-4">
-               <h2 className={`text-2xl font-black ${isDark ? 'text-white' : 'text-black'} mt-6 mb-4 capitalize`}>{activeTab === Tab.WORKOUTS ? 'Treino' : 'Dieta'} Personalizado</h2>
-               <div className={`glass-card rounded-3xl p-6 ${isDark ? 'text-white/80' : 'text-black'} text-sm leading-relaxed whitespace-pre-line border border-yellow-500/10 mb-8 prose prose-invert max-w-none font-medium`}>{premiumContent}</div>
+               {loadingPlan ? (
+                 <div className="flex flex-col items-center justify-center py-20 text-center">
+                    <i className="fa-solid fa-circle-notch animate-spin text-4xl text-blue-600 mb-4"></i>
+                    <p className={`font-black uppercase tracking-widest text-xs mt-4 ${isDark ? 'text-white/40' : 'text-black/40'}`}>Esculpindo sua rotina ideal...</p>
+                 </div>
+               ) : premiumPlan ? (
+                 <>
+                   <div className="flex justify-between items-start mt-6 mb-6">
+                     <div>
+                       <h2 className={`text-2xl font-black ${isDark ? 'text-white' : 'text-black'} mb-1 capitalize`}>{premiumPlan.title || 'Seu Plano de Treino'}</h2>
+                       <div className="flex items-center gap-2">
+                         <p className={`${isDark ? 'text-white/40' : 'text-black/40'} text-[10px] font-black uppercase tracking-[0.2em]`}>Sua Rotina Personalizada</p>
+                         <span className={`text-[8px] font-black px-2 py-0.5 rounded-full uppercase border ${
+                           user.fitnessLevel === 'very_light' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600' :
+                           user.fitnessLevel === 'light' ? 'bg-emerald-400/10 border-emerald-400/20 text-emerald-500' :
+                           user.fitnessLevel === 'moderate' ? 'bg-blue-500/10 border-blue-500/20 text-blue-600' :
+                           user.fitnessLevel === 'hard' ? 'bg-orange-500/10 border-orange-500/20 text-orange-600' :
+                           'bg-red-500/10 border-red-500/20 text-red-600'
+                         }`}>
+                           {user.fitnessLevel === 'very_light' ? 'Muito Leve' : 
+                            user.fitnessLevel === 'light' ? 'Leve' : 
+                            user.fitnessLevel === 'moderate' ? 'Moderado' : 
+                            user.fitnessLevel === 'hard' ? 'Difícil' : 'Muito Difícil'}
+                         </span>
+                       </div>
+                     </div>
+                     <div className="flex gap-2">
+                       <select 
+                         value={user.fitnessLevel}
+                         onChange={(e) => setUser({...user, fitnessLevel: e.target.value as any})}
+                         className={`h-10 px-3 rounded-xl border text-[10px] font-black uppercase tracking-widest focus:outline-none appearance-none ${
+                           isDark ? 'bg-white/5 border-white/10 text-white/60' : 'bg-black/5 border-black/10 text-black/60'
+                         }`}
+                       >
+                         <option value="very_light">Muito Leve</option>
+                         <option value="light">Leve</option>
+                         <option value="moderate">Moderado</option>
+                         <option value="hard">Difícil</option>
+                         <option value="very_hard">Muito Difícil</option>
+                       </select>
+                       <button 
+                        onClick={() => { setPremiumPlan(null); generateWorkoutPlan(); }} 
+                        disabled={loadingPlan}
+                        className={`w-10 h-10 rounded-xl flex items-center justify-center border ${isDark ? 'bg-white/5 border-white/10 text-white/40' : 'bg-black/5 border-black/10 text-black/40'} hover:text-blue-600 transition-all disabled:opacity-30`}
+                       >
+                         <i className={`fa-solid fa-arrows-rotate text-xs ${loadingPlan ? 'animate-spin' : ''}`}></i>
+                       </button>
+                     </div>
+                   </div>
+
+                   <div className="space-y-4 mb-8">
+                    {premiumPlan.items && Array.isArray(premiumPlan.items) ? premiumPlan.items.map((ex: any, i: number) => (
+                      <div key={i} className={`glass-card rounded-2xl p-5 border ${isDark ? 'border-white/5' : 'border-black/5 shadow-sm'}`}>
+                        <div className="flex justify-between items-start mb-3">
+                          <h3 className={`font-black text-sm uppercase ${isDark ? 'text-white' : 'text-black'}`}>{ex.name || 'Exercício'}</h3>
+                          <div className="flex gap-2">
+                            <span className="bg-blue-600 text-white text-[8px] font-black px-2 py-1 rounded-full uppercase">{ex.sets || '3'}x</span>
+                            <span className="bg-indigo-600 text-white text-[8px] font-black px-2 py-1 rounded-full uppercase">{ex.reps || '12'}</span>
+                          </div>
+                        </div>
+                        <p className={`${isDark ? 'text-white/60' : 'text-black/60'} text-xs leading-relaxed mb-3`}>{ex.instructions || 'Siga as instruções do seu treinador AI.'}</p>
+                        {ex.tips && (
+                          <div className={`p-3 rounded-xl ${isDark ? 'bg-white/5' : 'bg-black/5'} flex gap-3 items-start border ${isDark ? 'border-white/5' : 'border-black/5'}`}>
+                            <i className="fa-solid fa-lightbulb text-yellow-500 text-[10px] mt-0.5"></i>
+                            <p className={`${isDark ? 'text-white/40' : 'text-black/50'} text-[10px] italic font-medium`}>{ex.tips}</p>
+                          </div>
+                        )}
+                      </div>
+                    )) : (
+                      <div className="text-center py-10">
+                        <p className="text-xs text-white/20">Nenhum exercício encontrado. Tente gerar novamente.</p>
+                      </div>
+                    )}
+                   </div>
+
+                   <button 
+                    onClick={handleCompleteWorkout}
+                    disabled={loadingPlan}
+                    className="w-full py-5 bg-gradient-to-r from-blue-600 to-indigo-700 rounded-2xl text-white font-black uppercase tracking-widest shadow-xl shadow-blue-600/20 active:scale-95 transition-all mb-12 disabled:opacity-50"
+                   >
+                    {loadingPlan ? (
+                      <i className="fa-solid fa-spinner animate-spin mr-2"></i>
+                    ) : (
+                      <i className="fa-solid fa-check-double mr-2"></i>
+                    )}
+                    {loadingPlan ? 'Calculando...' : 'Concluir Treino de Hoje'}
+                   </button>
+
+                   <div className="mt-4">
+                    <h3 className={`font-black text-xs uppercase tracking-widest mb-4 ${isDark ? 'text-white/40' : 'text-black/40'}`}>Histórico Recente</h3>
+                    <WorkoutHistory history={workoutHistory.slice(0, 3)} isDark={isDark} />
+                   </div>
+                 </>
+               ) : (
+                 <div className="flex flex-col items-center justify-center py-20 text-center">
+                    <div className="w-16 h-16 bg-blue-600/10 rounded-2xl flex items-center justify-center mb-6">
+                       <i className="fa-solid fa-dumbbell text-blue-600 text-2xl"></i>
+                    </div>
+                    <h3 className={`text-xl font-black ${isDark ? 'text-white' : 'text-black'} mb-2`}>Pronto para começar?</h3>
+                    <p className={`${isDark ? 'text-white/40' : 'text-black/40'} text-xs mb-8 max-w-[200px]`}>Escolha sua intensidade e deixe nossa IA criar o treino perfeito.</p>
+                    
+                    <div className="flex flex-wrap justify-center gap-2 mb-6">
+                       {['very_light', 'light', 'moderate', 'hard', 'very_hard'].map((level) => (
+                         <button
+                           key={level}
+                           onClick={() => setUser({...user, fitnessLevel: level as any})}
+                           className={`px-4 py-2 rounded-xl border text-[10px] font-black uppercase tracking-widest transition-all ${
+                             user.fitnessLevel === level 
+                               ? 'bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-600/20' 
+                               : isDark ? 'bg-white/5 border-white/10 text-white/40' : 'bg-black/5 border-black/10 text-black/40'
+                           }`}
+                         >
+                           {level === 'very_light' ? 'Muito Leve' : 
+                            level === 'light' ? 'Leve' : 
+                            level === 'moderate' ? 'Moderado' : 
+                            level === 'hard' ? 'Difícil' : 'Muito Difícil'}
+                         </button>
+                       ))}
+                    </div>
+
+                    <button onClick={generateWorkoutPlan} className="px-12 py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black uppercase tracking-widest shadow-xl shadow-blue-600/20 transition-all active:scale-95">
+                      Gerar Minha Rotina
+                    </button>
+                 </div>
+               )}
             </div>
           )}
         </main>
       )}
 
+      {activeTab === Tab.DIET && (
+        <main className="flex-1 px-4 overflow-y-auto pb-8">
+           {!user?.isPremium ? (
+            <PremiumAdvantagesPage onUpgrade={() => { if(user) { setUser({...user, isPremium: true}); } }} isDark={isDark} />
+          ) : (
+            <div className="animate-in fade-in slide-in-from-bottom-4">
+              <h2 className={`text-2xl font-black ${isDark ? 'text-white' : 'text-black'} mt-6 mb-2`}>Construtor de Dieta AI</h2>
+              <p className={`${isDark ? 'text-white/40' : 'text-black/40'} text-[10px] font-black uppercase tracking-[0.2em] mb-8`}>Monte seu dia e valide com a IA</p>
+              <DietBuilder profile={user!} isDark={isDark} />
+            </div>
+          )}
+        </main>
+      )}
+
+      {activeTab === Tab.COACH && (
+        <main className="flex-1 overflow-hidden">
+          {!user?.isPremium ? (
+            <div className="px-4 h-full overflow-y-auto">
+              <PremiumAdvantagesPage onUpgrade={() => { if(user) { setUser({...user, isPremium: true}); } }} isDark={isDark} />
+            </div>
+          ) : (
+            <>
+              <div className="px-6 pt-4">
+                <h2 className={`text-2xl font-black ${isDark ? 'text-white' : 'text-black'} mb-1`}>Coach AI</h2>
+                <p className={`${isDark ? 'text-white/40' : 'text-black/40'} text-[10px] font-black uppercase tracking-[0.2em]`}>Seu mentor pessoal de saúde</p>
+              </div>
+              <AICoach profile={user!} stats={stats} isDark={isDark} />
+            </>
+          )}
+        </main>
+      )}
+
       {activeTab === Tab.REPORT && (
-        <main className="flex-1 px-4">
-          <WeeklyChart data={[{day: 'Hoje', steps: stats.steps, isToday: true}]} isDark={isDark} />
+        <main className="flex-1 px-4 overflow-y-auto">
+          <h2 className={`text-2xl font-black ${isDark ? 'text-white' : 'text-black'} mt-6 mb-2`}>Relatório Semanal</h2>
+          <p className={`${isDark ? 'text-white/40' : 'text-black/40'} text-[10px] font-black uppercase tracking-[0.2em] mb-8`}>Seu progresso nos últimos dias</p>
+          
+          <WeeklyChart data={getWeekData()} isDark={isDark} />
+          
+          <div className="mt-10 mb-8">
+            <h3 className={`font-black text-sm uppercase tracking-widest mb-4 ${isDark ? 'text-white' : 'text-black'}`}>Histórico de Atividades</h3>
+            <WorkoutHistory history={workoutHistory} isDark={isDark} />
+          </div>
         </main>
       )}
 
@@ -462,21 +828,16 @@ const App: React.FC = () => {
           <ProfilePage 
             user={user} 
             onLogout={handleLogout} 
+            onUpdateUser={(updated) => setUser(updated)}
             onViewPremium={() => setActiveTab(Tab.PREMIUM_ADVANTAGES)} 
-            theme={theme}
-            onToggleTheme={handleToggleTheme}
+            theme={theme} 
+            onToggleTheme={() => setTheme(theme === 'dark' ? 'light' : 'dark')} 
           />
         </main>
       )}
 
-      {activeTab === Tab.PREMIUM_ADVANTAGES && (
-        <main className="flex-1 overflow-y-auto">
-          <PremiumAdvantagesPage onUpgrade={handleUpgrade} onBack={() => setActiveTab(Tab.PROFILE)} isDark={isDark} />
-        </main>
-      )}
-
-      <div className="fixed bottom-28 right-6">
-        <button onClick={toggleTracking} className={`w-16 h-16 rounded-full flex items-center justify-center shadow-2xl transition-all active:scale-90 ${isTracking ? 'bg-red-600 rotate-45' : 'bg-blue-600'}`}>
+      <div className="fixed bottom-28 right-6 z-40">
+        <button onClick={toggleTracking} className={`w-16 h-16 rounded-full flex items-center justify-center shadow-2xl transition-all active:scale-90 ${isTracking ? 'bg-red-600 rotate-45 shadow-red-600/40' : 'bg-blue-600 shadow-blue-600/40'}`}>
           <i className={`fa-solid ${isTracking ? 'fa-plus' : 'fa-play'} text-white text-2xl`}></i>
         </button>
       </div>
@@ -486,10 +847,11 @@ const App: React.FC = () => {
           { id: Tab.DASHBOARD, icon: 'fa-house', label: 'Início' },
           { id: Tab.WORKOUTS, icon: 'fa-dumbbell', label: 'Treino' },
           { id: Tab.DIET, icon: 'fa-apple-whole', label: 'Dieta' },
+          { id: Tab.COACH, icon: 'fa-comment-medical', label: 'Coach' },
           { id: Tab.REPORT, icon: 'fa-chart-simple', label: 'Status' },
           { id: Tab.PROFILE, icon: 'fa-user', label: 'Perfil' },
         ].map(item => (
-          <button key={item.id} onClick={() => setActiveTab(item.id)} className={`flex flex-col items-center gap-1 flex-1 transition-all ${activeTab === item.id ? 'text-blue-600' : isDark ? 'text-white/20' : 'text-black/30'}`}>
+          <button key={item.id} onClick={() => setActiveTab(item.id)} className={`flex flex-col items-center gap-1 flex-1 transition-all ${activeTab === item.id ? 'text-blue-600' : isDark ? 'text-white/20' : 'text-black/40'}`}>
             <i className={`fa-solid ${item.icon} text-lg`}></i>
             <span className="text-[8px] font-black uppercase tracking-widest">{item.label}</span>
           </button>

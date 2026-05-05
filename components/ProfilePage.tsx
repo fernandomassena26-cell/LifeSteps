@@ -162,6 +162,25 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
               <option value="very_hard">Muito Difícil</option>
             </select>
           </div>
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-4">
+              <div className="w-10 h-10 rounded-xl bg-purple-500/10 flex items-center justify-center text-purple-600">
+                <i className="fa-solid fa-dumbbell"></i>
+              </div>
+              <div>
+                <p className={`${isDark ? 'text-white/40' : 'text-black/40'} text-[10px] uppercase font-black tracking-widest`}>Ambiente de Treino</p>
+                <p className={`font-bold ${isDark ? 'text-white' : 'text-black'}`}>{user.trainingEnvironment === 'gym' ? 'Academia' : 'Em Casa'}</p>
+              </div>
+            </div>
+            <select 
+              className={`bg-transparent text-[10px] font-black uppercase tracking-widest ${isDark ? 'text-purple-400' : 'text-purple-600'} focus:outline-none`}
+              value={user.trainingEnvironment || 'home'}
+              onChange={(e) => onUpdateUser({ ...user, trainingEnvironment: e.target.value as any })}
+            >
+              <option value="home">Casa</option>
+              <option value="gym">Academia</option>
+            </select>
+          </div>
           <div className="flex items-center gap-4">
             <div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-600">
               <i className="fa-solid fa-shoe-prints"></i>

@@ -1,8 +1,8 @@
 
 import { GoogleGenAI, Type } from "@google/genai";
-import { DailyStats, UserProfile, UserGoal, FitnessLevel } from "../types";
+import { DailyStats, UserProfile, UserGoal, FitnessLevel, TrainingEnvironment } from "../types";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 export const calculateActivityCalories = async (activity: string, profile: UserProfile): Promise<{ calories: number; feedback: string }> => {
   const prompt = `Como um especialista em fisiologia do exercício, calcule as calorias queimadas para a atividade: "${activity}". 
@@ -13,6 +13,7 @@ export const calculateActivityCalories = async (activity: string, profile: UserP
   - Gênero: ${profile.gender}
   - Objetivo: ${profile.goal}
   - Nível de condicionamento: ${profile.fitnessLevel}
+  - Ambiente de treino preferencial: ${profile.trainingEnvironment || 'home'}
 
   Considere o MET (Equivalente Metabólico) para esta atividade específica.
   Retorne EXCLUSIVAMENTE um objeto JSON com:
@@ -173,7 +174,7 @@ export const calculateWorkoutCalories = async (plan: any, profile: UserProfile):
     return plan.items.length * 40; 
   }
 };
-export const getFitnessContent = async (type: 'workout' | 'diet', goal: UserGoal, fitnessLevel?: FitnessLevel): Promise<any> => {
+export const getFitnessContent = async (type: 'workout' | 'diet', goal: UserGoal, fitnessLevel?: FitnessLevel, trainingEnvironment?: TrainingEnvironment): Promise<any> => {
   const goalMap: Record<UserGoal, string> = {
     weight_loss: 'emagrecimento e queima de gordura',
     muscle_gain: 'hipertrofia e ganho de força',
@@ -189,9 +190,12 @@ export const getFitnessContent = async (type: 'workout' | 'diet', goal: UserGoal
   };
 
   const isWorkout = type === 'workout';
+  const environmentText = trainingEnvironment === 'gym' 
+    ? 'PARA ACADEMIA (focado em máquinas, pesos livres e equipamentos de musculação)' 
+    : 'PARA CASA (focado em peso do corpo, halteres leves ou elásticos)';
   
   const prompt = isWorkout 
-    ? `Gere um plano de TREINO PARA CASA focado em ${goalMap[goal]}.
+    ? `Gere um plano de TREINO ${environmentText} focado em ${goalMap[goal]}.
        O nível de dificuldade deve ser: ${fitnessLevel ? levelMap[fitnessLevel] : 'intermediário'}.
        Retorne um JSON estruturado com:
        - title: nome motivador do treino

@@ -10,13 +10,14 @@ import { WorkoutHistory } from './components/WorkoutHistory';
 import { PremiumAdvantagesPage } from './components/PremiumAdvantagesPage';
 import { DietBuilder } from './components/DietBuilder';
 import { AICoach } from './components/AICoach';
-import { DailyStats, UserProfile, Tab, UserGoal, WorkoutHistoryItem, FitnessLevel } from './types';
+import { DailyStats, UserProfile, Tab, UserGoal, WorkoutHistoryItem, FitnessLevel, TrainingEnvironment } from './types';
 import { STORAGE_KEYS, DEFAULT_GOAL, CALORIES_PER_STEP, DISTANCE_PER_STEP, TIME_PER_STEP } from './constants';
 import { getFitnessContent, calculateWorkoutCalories } from './services/geminiService';
 
 const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<Tab>(Tab.LOGIN);
-  const [authMode, setAuthMode] = useState<'login' | 'signup' | 'forgot-password'>('login');
+  const [authMode, setAuthMode] = useState<'login' | 'signup' | 'forgot-password' | 'reset-password'>('login');
+  const [loading, setLoading] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [user, setUser] = useState<UserProfile | null>(null);
   const [notificationsAllowed, setNotificationsAllowed] = useState(false);
@@ -25,7 +26,8 @@ const App: React.FC = () => {
   const [formData, setFormData] = useState({
     email: '', password: '', confirmPassword: '', name: '',
     age: '', weight: '', height: '', goal: 'maintenance' as UserGoal,
-    fitnessLevel: 'moderate' as FitnessLevel
+    fitnessLevel: 'moderate' as FitnessLevel,
+    trainingEnvironment: 'home' as TrainingEnvironment
   });
 
   const [authError, setAuthError] = useState<string | null>(null);
@@ -92,20 +94,21 @@ const App: React.FC = () => {
     if (activeTab === Tab.WORKOUTS && user?.isPremium && !loadingPlan) {
       const planMatchesGoal = premiumPlan?.goal === user.goal;
       const planMatchesLevel = premiumPlan?.fitnessLevel === user.fitnessLevel;
-      if (!premiumPlan || !planMatchesGoal || !planMatchesLevel) {
+      const planMatchesEnvironment = premiumPlan?.trainingEnvironment === user.trainingEnvironment;
+      if (!premiumPlan || !planMatchesGoal || !planMatchesLevel || !planMatchesEnvironment) {
         generateWorkoutPlan();
       }
     }
-  }, [activeTab, user?.isPremium, user?.goal, user?.fitnessLevel]);
+  }, [activeTab, user?.isPremium, user?.goal, user?.fitnessLevel, user?.trainingEnvironment]);
 
   const generateWorkoutPlan = async () => {
     if (!user) return;
     setLoadingPlan(true);
     try {
-      const plan = await getFitnessContent('workout', user.goal, user.fitnessLevel);
+      const plan = await getFitnessContent('workout', user.goal, user.fitnessLevel, user.trainingEnvironment);
       if (plan) {
         // Anexa o objetivo e nível ao plano para controle de versão/mudança
-        setPremiumPlan({ ...plan, goal: user.goal, fitnessLevel: user.fitnessLevel });
+        setPremiumPlan({ ...plan, goal: user.goal, fitnessLevel: user.fitnessLevel, trainingEnvironment: user.trainingEnvironment });
       }
     } catch (e) {
       console.error("Erro ao carregar plano premium:", e);
@@ -141,6 +144,19 @@ const App: React.FC = () => {
   const LPF_ALPHA = 0.15;
   const AVG_ALPHA = 0.05;
   const STEP_THRESHOLD = 1.15;
+
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const token = urlParams.get('token');
+    const email = urlParams.get('email');
+    
+    if (token && email) {
+      setAuthMode('reset-password');
+      setFormData(prev => ({ ...prev, email }));
+      // Limpar os parâmetros da URL para ficar limpo
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  }, []);
 
   // 1. CARREGAMENTO INICIAL DA SESSÃO
   useEffect(() => {
@@ -376,7 +392,7 @@ const App: React.FC = () => {
     };
   }, [isTracking, handleMotion]);
 
-  const handleAuth = (e: React.FormEvent) => {
+  const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setAuthError(null);
     const storedUsers = JSON.parse(localStorage.getItem('registered_users') || '[]');
@@ -385,18 +401,45 @@ const App: React.FC = () => {
       const existingUser = storedUsers.find((u: any) => u.email === formData.email);
       if (existingUser) {
         setAuthError(null);
-        // Em um app real, enviaríamos um e-mail. Aqui, vamos apenas resetar para uma senha padrão ou mostrar a atual para fins de demo.
-        // Vamos permitir que o usuário defina uma nova senha se ele souber o e-mail.
-        if (formData.password) {
-          existingUser.password = formData.password;
-          localStorage.setItem('registered_users', JSON.stringify(storedUsers));
-          setAuthError("Senha redefinida com sucesso! Faça login.");
-          setAuthMode('login');
-        } else {
-          setAuthError("E-mail encontrado! Digite sua nova senha abaixo.");
+        setLoading(true);
+        
+        try {
+          const response = await fetch('/api/forgot-password', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: formData.email })
+          });
+          
+          const data = await response.json();
+          if (data.success) {
+            setAuthError(`E-mail de confirmação enviado para ${formData.email}! Verifique sua caixa de entrada.`);
+            // No modo demo, vamos mostrar o link se ele vier no debugLink
+            if (data.debugLink) {
+              console.log("Link de redefinição (Demo):", data.debugLink);
+            }
+          } else {
+            setAuthError(data.error || "Falha ao enviar e-mail.");
+          }
+        } catch (e) {
+          setAuthError("Erro de conexão ao enviar e-mail.");
+        } finally {
+          setLoading(false);
         }
       } else {
         setAuthError("E-mail não encontrado em nossa base.");
+      }
+      return;
+    }
+
+    if (authMode === 'reset-password') {
+      const existingUser = storedUsers.find((u: any) => u.email === formData.email);
+      if (existingUser) {
+        existingUser.password = formData.password;
+        localStorage.setItem('registered_users', JSON.stringify(storedUsers));
+        setAuthError("Senha redefinida com sucesso! Faça login.");
+        setAuthMode('login');
+      } else {
+        setAuthError("Erro ao redefinir senha: Usuário não encontrado.");
       }
       return;
     }
@@ -417,7 +460,7 @@ const App: React.FC = () => {
         id: Date.now().toString(), name: formData.name, email: formData.email,
         password: formData.password, age: parseInt(formData.age) || 25,
         weight: parseFloat(formData.weight) || 70, height: parseFloat(formData.height) || 170,
-        goal: formData.goal, fitnessLevel: formData.fitnessLevel, stepGoal: DEFAULT_GOAL, gender: 'other', isPremium: false,
+        goal: formData.goal, fitnessLevel: formData.fitnessLevel, trainingEnvironment: formData.trainingEnvironment, stepGoal: DEFAULT_GOAL, gender: 'other', isPremium: false,
         waterNotificationsEnabled: false
       };
       storedUsers.push(newUser);
@@ -544,7 +587,12 @@ const App: React.FC = () => {
           <form onSubmit={handleAuth} className="space-y-4">
             {authMode === 'forgot-password' && (
               <p className={`text-[10px] text-center mb-4 ${isDark ? 'text-white/40' : 'text-black/60'} font-bold uppercase tracking-widest`}>
-                Digite seu e-mail para redefinir sua senha
+                Digite seu e-mail para receber o link de confirmação
+              </p>
+            )}
+            {authMode === 'reset-password' && (
+              <p className={`text-[10px] text-center mb-4 ${isDark ? 'text-white/40' : 'text-black/60'} font-bold uppercase tracking-widest`}>
+                Defina sua nova senha para {formData.email}
               </p>
             )}
             {authMode === 'signup' && (
@@ -567,16 +615,21 @@ const App: React.FC = () => {
                   <option value="hard">Difícil</option>
                   <option value="very_hard">Muito Difícil</option>
                 </select>
+                <select className={`w-full ${isDark ? 'bg-white/10 border-white/10 text-white' : 'bg-white border-black/10 text-black'} border rounded-xl px-4 py-3 text-sm focus:outline-none appearance-none font-bold`} value={formData.trainingEnvironment} onChange={e => setFormData({...formData, trainingEnvironment: e.target.value as TrainingEnvironment})}>
+                  <option value="home">Treinar em Casa</option>
+                  <option value="gym">Treinar na Academia</option>
+                </select>
               </>
             )}
-            <input type="email" placeholder="E-mail" className={`w-full ${isDark ? 'bg-white/5 border-white/10 text-white' : 'bg-white border-black/10 text-black'} border rounded-xl px-4 py-3 text-sm focus:outline-none`} value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} required />
-            {(authMode === 'login' || authMode === 'signup' || (authMode === 'forgot-password' && authError?.includes("E-mail encontrado"))) && (
-              <input type="password" placeholder={authMode === 'forgot-password' ? "Nova Senha" : "Senha"} className={`w-full ${isDark ? 'bg-white/5 border-white/10 text-white' : 'bg-white border-black/10 text-black'} border rounded-xl px-4 py-3 text-sm focus:outline-none`} value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} required />
+            <input type="email" placeholder="E-mail" className={`w-full ${isDark ? 'bg-white/5 border-white/10 text-white' : 'bg-white border-black/10 text-black'} border rounded-xl px-4 py-3 text-sm focus:outline-none`} value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} required disabled={authMode === 'reset-password'} />
+            {(authMode === 'login' || authMode === 'signup' || authMode === 'reset-password') && (
+              <input type="password" placeholder={authMode === 'reset-password' ? "Nova Senha" : "Senha"} className={`w-full ${isDark ? 'bg-white/5 border-white/10 text-white' : 'bg-white border-black/10 text-black'} border rounded-xl px-4 py-3 text-sm focus:outline-none`} value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} required />
             )}
             {authMode === 'signup' && <input type="password" placeholder="Confirmar Senha" className={`w-full ${isDark ? 'bg-white/5 border-white/10 text-white' : 'bg-white border-black/10 text-black'} border rounded-xl px-4 py-3 text-sm focus:outline-none`} value={formData.confirmPassword} onChange={e => setFormData({...formData, confirmPassword: e.target.value})} required />}
-            {authError && <p className={`text-center text-[10px] font-black uppercase tracking-tighter py-2 rounded-lg ${authError.includes("sucesso") || authError.includes("encontrado") ? 'text-emerald-600 bg-emerald-600/10' : 'text-red-600 bg-red-600/10'}`}>{authError}</p>}
-            <button type="submit" className="w-full py-4 bg-blue-600 hover:bg-blue-700 rounded-xl text-white font-black uppercase tracking-widest transition-all shadow-xl">
-              {authMode === 'login' ? 'Entrar Agora' : authMode === 'signup' ? 'Finalizar Cadastro' : 'Redefinir Senha'}
+            {authError && <p className={`text-center text-[10px] font-black uppercase tracking-tighter py-2 rounded-lg ${authError.includes("sucesso") || authError.includes("enviado") ? 'text-emerald-600 bg-emerald-600/10' : 'text-red-600 bg-red-600/10'}`}>{authError}</p>}
+            <button type="submit" disabled={loading} className="w-full py-4 bg-blue-600 hover:bg-blue-700 rounded-xl text-white font-black uppercase tracking-widest transition-all shadow-xl disabled:opacity-50">
+              {loading ? <i className="fa-solid fa-spinner animate-spin mr-2"></i> : null}
+              {authMode === 'login' ? 'Entrar Agora' : authMode === 'signup' ? 'Finalizar Cadastro' : authMode === 'forgot-password' ? 'Enviar E-mail de Confirmação' : 'Redefinir Senha'}
             </button>
             {authMode === 'login' && (
               <button type="button" onClick={() => { setAuthMode('forgot-password'); setAuthError(null); }} className={`w-full text-[10px] font-black uppercase tracking-widest ${isDark ? 'text-white/20 hover:text-white/40' : 'text-black/30 hover:text-black/50'} transition-all mt-2`}>

@@ -1,6 +1,7 @@
 
 export type UserGoal = 'weight_loss' | 'muscle_gain' | 'maintenance';
 export type FitnessLevel = 'very_light' | 'light' | 'moderate' | 'hard' | 'very_hard';
+export type TrainingEnvironment = 'home' | 'gym';
 
 export interface UserProfile {
   id: string;
@@ -10,6 +11,7 @@ export interface UserProfile {
   age: number;
   goal: UserGoal;
   fitnessLevel: FitnessLevel;
+  trainingEnvironment?: TrainingEnvironment;
   stepGoal: number;
   weight: number; // em kg
   height: number; // em cm

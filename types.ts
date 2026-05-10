@@ -41,18 +41,11 @@ export interface HistoryItem {
   steps: number;
 }
 
-export interface ChatMessage {
-  role: 'user' | 'model';
-  text: string;
-  timestamp: string;
-}
-
 export enum Tab {
   LOGIN = 'LOGIN',
   DASHBOARD = 'DASHBOARD',
   WORKOUTS = 'WORKOUTS',
   DIET = 'DIET',
-  COACH = 'COACH',
   REPORT = 'REPORT',
   SETTINGS = 'SETTINGS',
   PROFILE = 'PROFILE',

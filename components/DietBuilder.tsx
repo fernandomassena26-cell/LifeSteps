@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { getDietBuilderOptions, validateUserDiet } from '../services/geminiService';
+import { getDietBuilderOptions, validateUserDiet } from '../services/fitnessService';
 import { UserProfile } from '../types';
 
 interface Props {
@@ -79,7 +79,7 @@ export const DietBuilder: React.FC<Props> = ({ profile, isDark }) => {
           <i className="fa-solid fa-utensils text-4xl text-blue-600 absolute inset-0 flex items-center justify-center animate-pulse"></i>
           <div className="absolute inset-0 border-4 border-blue-600/20 border-t-blue-600 rounded-full animate-spin"></div>
         </div>
-        <p className={`font-black uppercase tracking-[0.3em] text-[10px] ${isDark ? 'text-white/40' : 'text-black/40'}`}>Gerando Opções...</p>
+        <p className={`font-black uppercase tracking-[0.3em] text-[10px] ${isDark ? 'text-white/40' : 'text-black/40'}`}>Carregando Opções...</p>
       </div>
     );
   }
@@ -162,7 +162,7 @@ export const DietBuilder: React.FC<Props> = ({ profile, isDark }) => {
 
       <div className="fixed bottom-24 left-0 right-0 px-4 z-40 max-w-md mx-auto grid grid-cols-2 gap-3">
         <button onClick={handleValidate} disabled={validating || !hasSelection} className="py-4 rounded-2xl font-black uppercase tracking-widest text-[10px] bg-blue-600 text-white shadow-2xl disabled:opacity-30">
-          {validating ? <i className="fa-solid fa-spinner animate-spin"></i> : <i className="fa-solid fa-robot mr-2"></i>} Validar IA
+          {validating ? <i className="fa-solid fa-spinner animate-spin"></i> : <i className="fa-solid fa-check-double mr-2"></i>} Validar Dieta
         </button>
         <button onClick={handleSaveDiet} disabled={!hasSelection} className={`py-4 rounded-2xl font-black uppercase tracking-widest text-[10px] shadow-2xl transition-all ${showSavedFeedback ? 'bg-emerald-600 text-white' : isDark ? 'bg-white/10 text-white' : 'bg-black/5 text-black'} disabled:opacity-30`}>
           {showSavedFeedback ? <i className="fa-solid fa-check"></i> : <i className="fa-solid fa-floppy-disk mr-2"></i>} {showSavedFeedback ? 'Salvo!' : 'Salvar Dieta'}
@@ -186,7 +186,7 @@ export const DietBuilder: React.FC<Props> = ({ profile, isDark }) => {
               }`}></i>
             </div>
             <div>
-              <p className={`text-[10px] font-black uppercase tracking-[0.3em] ${isDark ? 'text-white/30' : 'text-black/30'}`}>Análise do Nutricionista IA</p>
+              <p className={`text-[10px] font-black uppercase tracking-[0.3em] ${isDark ? 'text-white/30' : 'text-black/30'}`}>Análise Nutricional</p>
               <h4 className={`font-black text-lg uppercase tracking-tight ${
                 validationResult.status === 'compatible' ? 'text-emerald-500' :
                 validationResult.status === 'partial' ? 'text-yellow-600' : 'text-red-500'

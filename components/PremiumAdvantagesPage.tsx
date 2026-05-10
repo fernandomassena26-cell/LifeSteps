@@ -17,14 +17,14 @@ export const PremiumAdvantagesPage: React.FC<PremiumAdvantagesPageProps> = ({ on
     },
     {
       icon: 'fa-wand-magic-sparkles',
-      title: 'Calculadora AI',
-      description: 'Registre qualquer atividade física e deixe nossa IA calcular o gasto calórico exato.',
+      title: 'Calculadora de Atividade',
+      description: 'Registre qualquer atividade física e receba o cálculo do gasto calórico baseado no seu perfil.',
       color: 'text-blue-500'
     },
     {
       icon: 'fa-dumbbell',
       title: 'Treinos Ilimitados',
-      description: 'Receba rotinas de treino personalizadas geradas pela AI para fazer onde quiser.',
+      description: 'Acesse rotinas de treino pré-programadas para fazer onde você quiser.',
       color: 'text-purple-500'
     },
     {
@@ -35,8 +35,8 @@ export const PremiumAdvantagesPage: React.FC<PremiumAdvantagesPageProps> = ({ on
     },
     {
       icon: 'fa-comment-medical',
-      title: 'Coach AI 24/7',
-      description: 'Seu mentor pessoal de saúde disponível a qualquer momento para tirar dúvidas e motivar.',
+      title: 'Plano de Saúde',
+      description: 'Consulte dicas de saúde e motivação disponíveis a qualquer momento.',
       color: 'text-indigo-500'
     },
     {

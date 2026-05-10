@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { calculateActivityCalories } from '../services/geminiService';
+import { calculateActivityCalories } from '../services/fitnessService';
 import { UserProfile } from '../types';
 
 interface Props {
@@ -56,13 +56,13 @@ export const ActivityCalculator: React.FC<Props> = ({ profile, onAddCalories, is
             <i className="fa-solid fa-bolt-lightning text-white text-xl"></i>
           </div>
           <div>
-            <h3 className={`font-black text-lg ${isDark ? 'text-white' : 'text-black'}`}>Cálculo de Calorias AI</h3>
+            <h3 className={`font-black text-lg ${isDark ? 'text-white' : 'text-black'}`}>Cálculo de Calorias</h3>
             <p className={`${isDark ? 'text-white/40' : 'text-black/50'} text-[9px] uppercase tracking-widest font-black`}>Módulo de Precisão Bio-Métrica</p>
           </div>
         </div>
 
         <p className={`${isDark ? 'text-white/60' : 'text-black/60'} text-xs mb-5 leading-relaxed font-medium`}>
-          Digite o que você fez (ex: "Joguei futebol por 40 min") e nossa IA calculará o gasto baseado no seu perfil físico.
+          Digite o que você fez (ex: "Joguei futebol por 40 min") e calcularemos o gasto baseado no seu perfil físico.
         </p>
         
         <div className="relative z-10 space-y-3">

@@ -9,10 +9,9 @@ import { ProfilePage } from './components/ProfilePage';
 import { WorkoutHistory } from './components/WorkoutHistory';
 import { PremiumAdvantagesPage } from './components/PremiumAdvantagesPage';
 import { DietBuilder } from './components/DietBuilder';
-import { AICoach } from './components/AICoach';
 import { DailyStats, UserProfile, Tab, UserGoal, WorkoutHistoryItem, FitnessLevel, TrainingEnvironment } from './types';
 import { STORAGE_KEYS, DEFAULT_GOAL, CALORIES_PER_STEP, DISTANCE_PER_STEP, TIME_PER_STEP } from './constants';
-import { getFitnessContent, calculateWorkoutCalories } from './services/geminiService';
+import { getFitnessContent, calculateWorkoutCalories } from './services/fitnessService';
 
 const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<Tab>(Tab.LOGIN);
@@ -400,31 +399,8 @@ const App: React.FC = () => {
     if (authMode === 'forgot-password') {
       const existingUser = storedUsers.find((u: any) => u.email === formData.email);
       if (existingUser) {
-        setAuthError(null);
-        setLoading(true);
-        
-        try {
-          const response = await fetch('/api/forgot-password', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email: formData.email })
-          });
-          
-          const data = await response.json();
-          if (data.success) {
-            setAuthError(`E-mail de confirmação enviado para ${formData.email}! Verifique sua caixa de entrada.`);
-            // No modo demo, vamos mostrar o link se ele vier no debugLink
-            if (data.debugLink) {
-              console.log("Link de redefinição (Demo):", data.debugLink);
-            }
-          } else {
-            setAuthError(data.error || "Falha ao enviar e-mail.");
-          }
-        } catch (e) {
-          setAuthError("Erro de conexão ao enviar e-mail.");
-        } finally {
-          setLoading(false);
-        }
+        setAuthError("E-mail verificado! Para fins de offline, você pode redefinir sua senha agora.");
+        setAuthMode('reset-password');
       } else {
         setAuthError("E-mail não encontrado em nossa base.");
       }
@@ -626,10 +602,9 @@ const App: React.FC = () => {
               <input type="password" placeholder={authMode === 'reset-password' ? "Nova Senha" : "Senha"} className={`w-full ${isDark ? 'bg-white/5 border-white/10 text-white' : 'bg-white border-black/10 text-black'} border rounded-xl px-4 py-3 text-sm focus:outline-none`} value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} required />
             )}
             {authMode === 'signup' && <input type="password" placeholder="Confirmar Senha" className={`w-full ${isDark ? 'bg-white/5 border-white/10 text-white' : 'bg-white border-black/10 text-black'} border rounded-xl px-4 py-3 text-sm focus:outline-none`} value={formData.confirmPassword} onChange={e => setFormData({...formData, confirmPassword: e.target.value})} required />}
-            {authError && <p className={`text-center text-[10px] font-black uppercase tracking-tighter py-2 rounded-lg ${authError.includes("sucesso") || authError.includes("enviado") ? 'text-emerald-600 bg-emerald-600/10' : 'text-red-600 bg-red-600/10'}`}>{authError}</p>}
-            <button type="submit" disabled={loading} className="w-full py-4 bg-blue-600 hover:bg-blue-700 rounded-xl text-white font-black uppercase tracking-widest transition-all shadow-xl disabled:opacity-50">
-              {loading ? <i className="fa-solid fa-spinner animate-spin mr-2"></i> : null}
-              {authMode === 'login' ? 'Entrar Agora' : authMode === 'signup' ? 'Finalizar Cadastro' : authMode === 'forgot-password' ? 'Enviar E-mail de Confirmação' : 'Redefinir Senha'}
+            {authError && <p className={`text-center text-[10px] font-black uppercase tracking-tighter py-2 rounded-lg ${authError.includes("sucesso") || authError.includes("verificado") ? 'text-emerald-600 bg-emerald-600/10' : 'text-red-600 bg-red-600/10'}`}>{authError}</p>}
+            <button type="submit" className="w-full py-4 bg-blue-600 hover:bg-blue-700 rounded-xl text-white font-black uppercase tracking-widest transition-all shadow-xl">
+              {authMode === 'login' ? 'Entrar Agora' : authMode === 'signup' ? 'Finalizar Cadastro' : authMode === 'forgot-password' ? 'Confirmar E-mail' : 'Redefinir Senha'}
             </button>
             {authMode === 'login' && (
               <button type="button" onClick={() => { setAuthMode('forgot-password'); setAuthError(null); }} className={`w-full text-[10px] font-black uppercase tracking-widest ${isDark ? 'text-white/20 hover:text-white/40' : 'text-black/30 hover:text-black/50'} transition-all mt-2`}>
@@ -703,7 +678,7 @@ const App: React.FC = () => {
                {loadingPlan ? (
                  <div className="flex flex-col items-center justify-center py-20 text-center">
                     <i className="fa-solid fa-circle-notch animate-spin text-4xl text-blue-600 mb-4"></i>
-                    <p className={`font-black uppercase tracking-widest text-xs mt-4 ${isDark ? 'text-white/40' : 'text-black/40'}`}>Esculpindo sua rotina ideal...</p>
+                    <p className={`font-black uppercase tracking-widest text-[10px] mt-4 ${isDark ? 'text-white/40' : 'text-black/40'}`}>Carregando seu plano de treino...</p>
                  </div>
                ) : premiumPlan ? (
                  <>
@@ -711,7 +686,7 @@ const App: React.FC = () => {
                      <div>
                        <h2 className={`text-2xl font-black ${isDark ? 'text-white' : 'text-black'} mb-1 capitalize`}>{premiumPlan.title || 'Seu Plano de Treino'}</h2>
                        <div className="flex items-center gap-2">
-                         <p className={`${isDark ? 'text-white/40' : 'text-black/40'} text-[10px] font-black uppercase tracking-[0.2em]`}>Sua Rotina Personalizada</p>
+                         <p className={`${isDark ? 'text-white/40' : 'text-black/40'} text-[10px] font-black uppercase tracking-[0.2em]`}>Sua Rotina Programada</p>
                          <span className={`text-[8px] font-black px-2 py-0.5 rounded-full uppercase border ${
                            user.fitnessLevel === 'very_light' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600' :
                            user.fitnessLevel === 'light' ? 'bg-emerald-400/10 border-emerald-400/20 text-emerald-500' :
@@ -760,7 +735,7 @@ const App: React.FC = () => {
                             <span className="bg-indigo-600 text-white text-[8px] font-black px-2 py-1 rounded-full uppercase">{ex.reps || '12'}</span>
                           </div>
                         </div>
-                        <p className={`${isDark ? 'text-white/60' : 'text-black/60'} text-xs leading-relaxed mb-3`}>{ex.instructions || 'Siga as instruções do seu treinador AI.'}</p>
+                        <p className={`${isDark ? 'text-white/60' : 'text-black/60'} text-xs leading-relaxed mb-3`}>{ex.instructions || 'Siga as instruções para uma execução segura.'}</p>
                         {ex.tips && (
                           <div className={`p-3 rounded-xl ${isDark ? 'bg-white/5' : 'bg-black/5'} flex gap-3 items-start border ${isDark ? 'border-white/5' : 'border-black/5'}`}>
                             <i className="fa-solid fa-lightbulb text-yellow-500 text-[10px] mt-0.5"></i>
@@ -785,7 +760,7 @@ const App: React.FC = () => {
                     ) : (
                       <i className="fa-solid fa-check-double mr-2"></i>
                     )}
-                    {loadingPlan ? 'Calculando...' : 'Concluir Treino de Hoje'}
+                    {loadingPlan ? 'Processando...' : 'Concluir Treino de Hoje'}
                    </button>
 
                    <div className="mt-4">
@@ -799,7 +774,7 @@ const App: React.FC = () => {
                        <i className="fa-solid fa-dumbbell text-blue-600 text-2xl"></i>
                     </div>
                     <h3 className={`text-xl font-black ${isDark ? 'text-white' : 'text-black'} mb-2`}>Pronto para começar?</h3>
-                    <p className={`${isDark ? 'text-white/40' : 'text-black/40'} text-xs mb-8 max-w-[200px]`}>Escolha sua intensidade e deixe nossa IA criar o treino perfeito.</p>
+                <p className={`${isDark ? 'text-white/40' : 'text-black/40'} text-xs mb-8 max-w-[200px]`}>Escolha sua intensidade e receba o treino perfeito.</p>
                     
                     <div className="flex flex-wrap justify-center gap-2 mb-6">
                        {['very_light', 'light', 'moderate', 'hard', 'very_hard'].map((level) => (
@@ -821,7 +796,7 @@ const App: React.FC = () => {
                     </div>
 
                     <button onClick={generateWorkoutPlan} className="px-12 py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black uppercase tracking-widest shadow-xl shadow-blue-600/20 transition-all active:scale-95">
-                      Gerar Minha Rotina
+                      Ver Meu Plano
                     </button>
                  </div>
                )}
@@ -836,28 +811,10 @@ const App: React.FC = () => {
             <PremiumAdvantagesPage onUpgrade={() => { if(user) { setUser({...user, isPremium: true}); } }} isDark={isDark} />
           ) : (
             <div className="animate-in fade-in slide-in-from-bottom-4">
-              <h2 className={`text-2xl font-black ${isDark ? 'text-white' : 'text-black'} mt-6 mb-2`}>Construtor de Dieta AI</h2>
-              <p className={`${isDark ? 'text-white/40' : 'text-black/40'} text-[10px] font-black uppercase tracking-[0.2em] mb-8`}>Monte seu dia e valide com a IA</p>
+              <h2 className={`text-2xl font-black ${isDark ? 'text-white' : 'text-black'} mt-6 mb-2`}>Construtor de Dieta</h2>
+              <p className={`${isDark ? 'text-white/40' : 'text-black/40'} text-[10px] font-black uppercase tracking-[0.2em] mb-8`}>Monte seu dia e valide sua dieta</p>
               <DietBuilder profile={user!} isDark={isDark} />
             </div>
-          )}
-        </main>
-      )}
-
-      {activeTab === Tab.COACH && (
-        <main className="flex-1 overflow-hidden">
-          {!user?.isPremium ? (
-            <div className="px-4 h-full overflow-y-auto">
-              <PremiumAdvantagesPage onUpgrade={() => { if(user) { setUser({...user, isPremium: true}); } }} isDark={isDark} />
-            </div>
-          ) : (
-            <>
-              <div className="px-6 pt-4">
-                <h2 className={`text-2xl font-black ${isDark ? 'text-white' : 'text-black'} mb-1`}>Coach AI</h2>
-                <p className={`${isDark ? 'text-white/40' : 'text-black/40'} text-[10px] font-black uppercase tracking-[0.2em]`}>Seu mentor pessoal de saúde</p>
-              </div>
-              <AICoach profile={user!} stats={stats} isDark={isDark} />
-            </>
           )}
         </main>
       )}
@@ -900,7 +857,6 @@ const App: React.FC = () => {
           { id: Tab.DASHBOARD, icon: 'fa-house', label: 'Início' },
           { id: Tab.WORKOUTS, icon: 'fa-dumbbell', label: 'Treino' },
           { id: Tab.DIET, icon: 'fa-apple-whole', label: 'Dieta' },
-          { id: Tab.COACH, icon: 'fa-comment-medical', label: 'Coach' },
           { id: Tab.REPORT, icon: 'fa-chart-simple', label: 'Status' },
           { id: Tab.PROFILE, icon: 'fa-user', label: 'Perfil' },
         ].map(item => (

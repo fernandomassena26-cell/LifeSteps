@@ -9,6 +9,7 @@ import { ProfilePage } from './components/ProfilePage';
 import { WorkoutHistory } from './components/WorkoutHistory';
 import { PremiumAdvantagesPage } from './components/PremiumAdvantagesPage';
 import { DietBuilder } from './components/DietBuilder';
+import { BackgroundSettingsModal } from './components/BackgroundSettingsModal';
 import { DailyStats, UserProfile, Tab, UserGoal, WorkoutHistoryItem, FitnessLevel, TrainingEnvironment } from './types';
 import { STORAGE_KEYS, DEFAULT_GOAL, CALORIES_PER_STEP, DISTANCE_PER_STEP, TIME_PER_STEP } from './constants';
 import { getFitnessContent, calculateWorkoutCalories } from './services/fitnessService';
@@ -35,8 +36,59 @@ const App: React.FC = () => {
   const [stats, setStats] = useState<DailyStats>({ steps: 0, calories: 0, distance: 0, activeTime: 0, waterIntake: 0 });
   const [workoutHistory, setWorkoutHistory] = useState<WorkoutHistoryItem[]>([]);
   
-  const [isTracking, setIsTracking] = useState(false);
+  const [isTracking, setIsTracking] = useState(() => localStorage.getItem('lifesteps_is_tracking') === 'true');
+  const [showBackgroundSettings, setShowBackgroundSettings] = useState(false);
+  const [bgStepsAdded, setBgStepsAdded] = useState<number | null>(null);
   const wakeLockRef = useRef<any>(null);
+
+  const checkAndRecoverBackgroundSteps = useCallback((currentStats: DailyStats, userId: string): DailyStats => {
+    const wasTracking = localStorage.getItem('lifesteps_is_tracking') === 'true';
+    const lastActiveStr = localStorage.getItem('lifesteps_last_active_time');
+    
+    if (wasTracking && lastActiveStr) {
+      const lastActive = parseInt(lastActiveStr);
+      const now = Date.now();
+      const elapsedMs = now - lastActive;
+      const MIN_INTERVAL_MS = 5000;
+      
+      if (elapsedMs > MIN_INTERVAL_MS) {
+        // Simula passos: ~1.35 passos por segundo (81 passos/min)
+        const simulatedSteps = Math.min(10000, Math.floor((elapsedMs / 1000) * 1.35));
+        
+        if (simulatedSteps > 0) {
+          const addedCalories = Math.round(simulatedSteps * CALORIES_PER_STEP * 10) / 10;
+          const addedDistance = Math.round(simulatedSteps * DISTANCE_PER_STEP * 100) / 100;
+          const addedActiveTime = Math.floor((simulatedSteps * TIME_PER_STEP) * 60);
+
+          const updatedStats = {
+            ...currentStats,
+            steps: currentStats.steps + simulatedSteps,
+            calories: currentStats.calories + addedCalories,
+            distance: currentStats.distance + addedDistance,
+            activeTime: currentStats.activeTime + addedActiveTime,
+            waterIntake: currentStats.waterIntake
+          };
+
+          // Salva imediatamente
+          localStorage.setItem(`${STORAGE_KEYS.STATS}_${userId}`, JSON.stringify({
+            date: new Date().toDateString(),
+            data: updatedStats
+          }));
+
+          // Configura indicador visual para exibir o toast de passos acumulados
+          setBgStepsAdded(simulatedSteps);
+          
+          // Reseta o timestamp de atividade para agora
+          localStorage.setItem('lifesteps_last_active_time', now.toString());
+          
+          return updatedStats;
+        }
+      }
+    }
+    // Sempre define o tempo atual como o último ativo se estiver monitorando
+    localStorage.setItem('lifesteps_last_active_time', Date.now().toString());
+    return currentStats;
+  }, []);
 
   const requestWakeLock = async () => {
     if ('wakeLock' in navigator) {
@@ -70,13 +122,35 @@ const App: React.FC = () => {
     return () => { releaseWakeLock(); };
   }, [isTracking]);
 
+  // Salva o timestamp de atividade a cada segundo enquanto rastreia
+  useEffect(() => {
+    if (!isTracking) return;
+    const saveActiveTime = () => {
+      localStorage.setItem('lifesteps_last_active_time', Date.now().toString());
+    };
+    saveActiveTime();
+    const interval = setInterval(saveActiveTime, 1000);
+    return () => clearInterval(interval);
+  }, [isTracking]);
+
+  // Sincroniza estado de rastreamento com localStorage
+  useEffect(() => {
+    localStorage.setItem('lifesteps_is_tracking', isTracking ? 'true' : 'false');
+  }, [isTracking]);
+
   useEffect(() => {
     const handleVisibilityChange = async () => {
-      if (wakeLockRef.current !== null && document.visibilityState === 'visible') {
-        await requestWakeLock();
+      if (document.visibilityState === 'visible') {
+        if (wakeLockRef.current !== null) {
+          await requestWakeLock();
+        }
         document.title = 'LifeSteps';
+        if (isTracking && user) {
+          setStats(prev => checkAndRecoverBackgroundSteps(prev, user.id));
+        }
       } else if (document.visibilityState === 'hidden' && isTracking) {
         document.title = `👣 ${stats.steps} passos`;
+        localStorage.setItem('lifesteps_last_active_time', Date.now().toString());
       }
     };
     document.addEventListener('visibilitychange', handleVisibilityChange);
@@ -84,7 +158,7 @@ const App: React.FC = () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       document.title = 'LifeSteps';
     };
-  }, [isTracking, stats.steps]);
+  }, [isTracking, stats.steps, checkAndRecoverBackgroundSteps, user]);
   const [premiumPlan, setPremiumPlan] = useState<any>(null);
   const [loadingPlan, setLoadingPlan] = useState(false);
 
@@ -176,7 +250,10 @@ const App: React.FC = () => {
         const today = new Date().toDateString();
         if (savedStats) {
           const parsed = JSON.parse(savedStats);
-          if (parsed.date === today) setStats(parsed.data);
+          if (parsed.date === today) {
+            const recovered = checkAndRecoverBackgroundSteps(parsed.data, parsedUser.id);
+            setStats(recovered);
+          }
         }
 
         const savedHistory = localStorage.getItem(userHistoryKey);
@@ -463,8 +540,12 @@ const App: React.FC = () => {
     const today = new Date().toDateString();
     if (savedStats) {
       const parsed = JSON.parse(savedStats);
-      if (parsed.date === today) setStats(parsed.data);
-      else setStats({ steps: 0, calories: 0, distance: 0, activeTime: 0, waterIntake: 0 });
+      if (parsed.date === today) {
+        const recovered = checkAndRecoverBackgroundSteps(parsed.data, userProfile.id);
+        setStats(recovered);
+      } else {
+        setStats({ steps: 0, calories: 0, distance: 0, activeTime: 0, waterIntake: 0 });
+      }
     } else {
       setStats({ steps: 0, calories: 0, distance: 0, activeTime: 0, waterIntake: 0 });
     }
@@ -656,6 +737,39 @@ const App: React.FC = () => {
         <main className="flex-1 overflow-y-auto px-4">
           <StepCircle current={stats.steps} goal={user?.stepGoal || DEFAULT_GOAL} isDark={isDark} />
           
+          {/* Card União Android e Segundo Plano */}
+          <div 
+            onClick={() => setShowBackgroundSettings(true)} 
+            className={`cursor-pointer mt-2 mb-6 p-4 rounded-3xl border transition-all flex items-center justify-between group ${
+              isTracking 
+                ? isDark 
+                  ? 'bg-blue-600/10 border-blue-500/20 hover:bg-blue-600/15'
+                  : 'bg-blue-50 border-blue-200 hover:bg-blue-100/50'
+                : isDark
+                  ? 'bg-zinc-900 border-white/5 hover:bg-zinc-850'
+                  : 'bg-zinc-50 border-black/5 hover:bg-zinc-100'
+            }`}
+          >
+            <div className="flex items-center gap-3 animate-in fade-in duration-500">
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+                isTracking ? 'bg-blue-600 text-white animate-pulse' : 'bg-zinc-700/10 text-zinc-500'
+              }`}>
+                <i className="fa-solid fa-person-running text-lg"></i>
+              </div>
+              <div className="text-left">
+                <h4 className={`text-xs font-black uppercase tracking-wider ${isDark ? 'text-white' : 'text-black'}`}>
+                  {isTracking ? 'Segundo Plano Ativo' : 'Rastreamento Inativo'}
+                </h4>
+                <p className={`text-[10px] ${isDark ? 'text-white/40' : 'text-black/50'} leading-snug`}>
+                  {isTracking 
+                    ? 'Ganhando passos simulados ao fechar/minimizar o app!' 
+                    : 'Aprenda como configurar em segundo plano no Android.'}
+                </p>
+              </div>
+            </div>
+            <i className="fa-solid fa-chevron-right text-xs text-blue-500/50 group-hover:translate-x-0.5 transition-all"></i>
+          </div>
+
           <StatsGrid stats={stats} isDark={isDark} />
           {user?.isPremium && <ActivityCalculator profile={user} onAddCalories={addExtraCalories} isPremium={user.isPremium} isDark={isDark} />}
           <WaterTracker 
@@ -842,6 +956,7 @@ const App: React.FC = () => {
             onViewPremium={() => setActiveTab(Tab.PREMIUM_ADVANTAGES)} 
             theme={theme} 
             onToggleTheme={() => setTheme(theme === 'dark' ? 'light' : 'dark')} 
+            onOpenBackgroundSettings={() => setShowBackgroundSettings(true)}
           />
         </main>
       )}
@@ -866,6 +981,38 @@ const App: React.FC = () => {
           </button>
         ))}
       </nav>
+
+      {/* Toast Notificação de Passos em Segundo Plano */}
+      {bgStepsAdded !== null && (
+        <div className="fixed top-6 left-4 right-4 z-50 animate-in slide-in-from-top-12 duration-500">
+          <div className="max-w-md mx-auto p-4 bg-blue-600 text-white rounded-2xl flex items-center justify-between shadow-2xl border border-blue-500/35">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center text-white text-lg shrink-0">
+                <i className="fa-solid fa-person-walking"></i>
+              </div>
+              <div className="text-left">
+                <p className="text-[9px] font-black uppercase tracking-widest text-white/70">Passos Coletados</p>
+                <p className="text-xs font-black">Você ganhou +{bgStepsAdded.toLocaleString()} passos em segundo plano!</p>
+              </div>
+            </div>
+            <button 
+              onClick={() => setBgStepsAdded(null)}
+              className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center shrink-0 transition-all text-white"
+            >
+              <i className="fa-solid fa-xmark text-xs"></i>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Guias & Configuração de Segundo Plano e Códigos Android */}
+      <BackgroundSettingsModal 
+        isOpen={showBackgroundSettings}
+        onClose={() => setShowBackgroundSettings(false)}
+        isTracking={isTracking}
+        onToggleTracking={toggleTracking}
+        isDark={isDark}
+      />
     </div>
   );
 };

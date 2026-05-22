@@ -9,6 +9,7 @@ interface ProfilePageProps {
   onViewPremium?: () => void;
   theme: 'dark' | 'light';
   onToggleTheme: () => void;
+  onOpenBackgroundSettings: () => void;
 }
 
 export const ProfilePage: React.FC<ProfilePageProps> = ({ 
@@ -17,7 +18,8 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
   onUpdateUser,
   onViewPremium, 
   theme, 
-  onToggleTheme 
+  onToggleTheme,
+  onOpenBackgroundSettings
 }) => {
   const getInitials = (name: string) => {
     return name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2);
@@ -191,6 +193,22 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
             </div>
           </div>
         </div>
+
+        <button 
+          onClick={onOpenBackgroundSettings}
+          className={`w-full glass-card rounded-2xl p-4 flex items-center justify-between border group transition-all ${isDark ? 'border-white/5 hover:bg-white/5' : 'border-black/5 hover:bg-black/5 shadow-sm'}`}
+        >
+          <div className="flex items-center gap-4">
+            <div className={`w-10 h-10 rounded-xl ${isDark ? 'bg-blue-600/10 text-blue-400' : 'bg-blue-600/5 text-blue-600'} flex items-center justify-center`}>
+              <i className="fa-solid fa-mobile-screen-button"></i>
+            </div>
+            <div className="text-left">
+              <span className={`font-bold text-sm block ${isDark ? 'text-white/80' : 'text-black'}`}>Segundo Plano & Android</span>
+              <span className={`${isDark ? 'text-white/30' : 'text-black/40'} text-[9px] block uppercase tracking-wider`}>Como rodar no celular fechado</span>
+            </div>
+          </div>
+          <i className="fa-solid fa-chevron-right text-black/20 group-hover:text-blue-600 transition-colors"></i>
+        </button>
 
         <button className={`w-full glass-card rounded-2xl p-4 flex items-center justify-between border group transition-all ${isDark ? 'border-white/5 hover:bg-white/5' : 'border-black/5 hover:bg-black/5 shadow-sm'}`}>
           <div className="flex items-center gap-4">

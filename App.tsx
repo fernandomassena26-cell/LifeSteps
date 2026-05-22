@@ -11,7 +11,19 @@ import { PremiumAdvantagesPage } from './components/PremiumAdvantagesPage';
 import { DietBuilder } from './components/DietBuilder';
 import { BackgroundSettingsModal } from './components/BackgroundSettingsModal';
 import { DailyStats, UserProfile, Tab, UserGoal, WorkoutHistoryItem, FitnessLevel, TrainingEnvironment } from './types';
-import { STORAGE_KEYS, DEFAULT_GOAL, CALORIES_PER_STEP, DISTANCE_PER_STEP, TIME_PER_STEP } from './constants';
+import { 
+  STORAGE_KEYS, 
+  DEFAULT_GOAL, 
+  CALORIES_PER_STEP, 
+  DISTANCE_PER_STEP, 
+  TIME_PER_STEP,
+  CALORIES_PER_STEP_RUNNING,
+  DISTANCE_PER_STEP_RUNNING,
+  TIME_PER_STEP_RUNNING,
+  CALORIES_PER_STEP_JOGGING,
+  DISTANCE_PER_STEP_JOGGING,
+  TIME_PER_STEP_JOGGING
+} from './constants';
 import { getFitnessContent, calculateWorkoutCalories } from './services/fitnessService';
 
 const App: React.FC = () => {
@@ -37,12 +49,21 @@ const App: React.FC = () => {
   const [workoutHistory, setWorkoutHistory] = useState<WorkoutHistoryItem[]>([]);
   
   const [isTracking, setIsTracking] = useState(() => localStorage.getItem('lifesteps_is_tracking') === 'true');
+  const [activityMode, setActivityMode] = useState<'walking' | 'jogging' | 'running'>(() => {
+    return (localStorage.getItem('lifesteps_activity_mode') as 'walking' | 'jogging' | 'running') || 'walking';
+  });
   const [showBackgroundSettings, setShowBackgroundSettings] = useState(false);
   const [bgStepsAdded, setBgStepsAdded] = useState<number | null>(null);
   const wakeLockRef = useRef<any>(null);
 
+  // Sincroniza estado do modo de atividade com localStorage
+  useEffect(() => {
+    localStorage.setItem('lifesteps_activity_mode', activityMode);
+  }, [activityMode]);
+
   const checkAndRecoverBackgroundSteps = useCallback((currentStats: DailyStats, userId: string): DailyStats => {
     const wasTracking = localStorage.getItem('lifesteps_is_tracking') === 'true';
+    const savedMode = (localStorage.getItem('lifesteps_activity_mode') as 'walking' | 'jogging' | 'running') || 'walking';
     const lastActiveStr = localStorage.getItem('lifesteps_last_active_time');
     
     if (wasTracking && lastActiveStr) {
@@ -52,19 +73,39 @@ const App: React.FC = () => {
       const MIN_INTERVAL_MS = 5000;
       
       if (elapsedMs > MIN_INTERVAL_MS) {
-        // Simula passos: ~1.35 passos por segundo (81 passos/min)
-        const simulatedSteps = Math.min(10000, Math.floor((elapsedMs / 1000) * 1.35));
+        // Simula passos: ~1.35 passos por segundo (81 passos/min) se caminhando,
+        // ~1.8 passos por segundo (108 passos/min) se trotando,
+        // ou um pouco mais rápido se correndo (~2.3 passos por segundo = 138 passos/min)
+        let stepRate = 1.35;
+        if (savedMode === 'jogging') stepRate = 1.8;
+        else if (savedMode === 'running') stepRate = 2.3;
+
+        const simulatedSteps = Math.min(10000, Math.floor((elapsedMs / 1000) * stepRate));
         
         if (simulatedSteps > 0) {
-          const addedCalories = Math.round(simulatedSteps * CALORIES_PER_STEP * 10) / 10;
-          const addedDistance = Math.round(simulatedSteps * DISTANCE_PER_STEP * 100) / 100;
-          const addedActiveTime = Math.floor((simulatedSteps * TIME_PER_STEP) * 60);
+          let kcalFactor = CALORIES_PER_STEP;
+          let distFactor = DISTANCE_PER_STEP;
+          let timeFactor = TIME_PER_STEP;
+
+          if (savedMode === 'jogging') {
+            kcalFactor = CALORIES_PER_STEP_JOGGING;
+            distFactor = DISTANCE_PER_STEP_JOGGING;
+            timeFactor = TIME_PER_STEP_JOGGING;
+          } else if (savedMode === 'running') {
+            kcalFactor = CALORIES_PER_STEP_RUNNING;
+            distFactor = DISTANCE_PER_STEP_RUNNING;
+            timeFactor = TIME_PER_STEP_RUNNING;
+          }
+
+          const addedCalories = Math.round(simulatedSteps * kcalFactor * 10) / 10;
+          const addedDistance = Math.round(simulatedSteps * distFactor * 100) / 100;
+          const addedActiveTime = Math.floor((simulatedSteps * timeFactor) * 60);
 
           const updatedStats = {
             ...currentStats,
             steps: currentStats.steps + simulatedSteps,
-            calories: currentStats.calories + addedCalories,
-            distance: currentStats.distance + addedDistance,
+            calories: Math.round((currentStats.calories + addedCalories) * 10) / 10,
+            distance: Math.round((currentStats.distance + addedDistance) * 100) / 100,
             activeTime: currentStats.activeTime + addedActiveTime,
             waterIntake: currentStats.waterIntake
           };
@@ -386,12 +427,26 @@ const App: React.FC = () => {
 
   const addStep = useCallback(() => {
     setStats(prev => {
+      let kcalFactor = CALORIES_PER_STEP;
+      let distFactor = DISTANCE_PER_STEP;
+      let timeFactor = TIME_PER_STEP;
+
+      if (activityMode === 'jogging') {
+        kcalFactor = CALORIES_PER_STEP_JOGGING;
+        distFactor = DISTANCE_PER_STEP_JOGGING;
+        timeFactor = TIME_PER_STEP_JOGGING;
+      } else if (activityMode === 'running') {
+        kcalFactor = CALORIES_PER_STEP_RUNNING;
+        distFactor = DISTANCE_PER_STEP_RUNNING;
+        timeFactor = TIME_PER_STEP_RUNNING;
+      }
+
       const newStats = {
         ...prev,
         steps: prev.steps + 1,
-        calories: prev.calories + CALORIES_PER_STEP,
-        distance: prev.distance + DISTANCE_PER_STEP,
-        activeTime: prev.activeTime + (TIME_PER_STEP * 60)
+        calories: Math.round((prev.calories + kcalFactor) * 100) / 100,
+        distance: Math.round((prev.distance + distFactor) * 1000000) / 1000000,
+        activeTime: prev.activeTime + (timeFactor * 60)
       };
       
       // Persistência imediata para evitar perda em segundo plano
@@ -404,7 +459,7 @@ const App: React.FC = () => {
       
       return newStats;
     });
-  }, [user]);
+  }, [user, activityMode]);
 
   const addExtraCalories = useCallback((kcal: number, activityName: string) => {
     setStats(prev => ({ ...prev, calories: prev.calories + kcal }));
@@ -768,6 +823,81 @@ const App: React.FC = () => {
               </div>
             </div>
             <i className="fa-solid fa-chevron-right text-xs text-blue-500/50 group-hover:translate-x-0.5 transition-all"></i>
+          </div>
+
+          {/* Seletor de Ritmo de Atividade (Caminhada vs Trote vs Corrida) */}
+          <div className={`mb-6 p-4 rounded-3xl border transition-all ${
+            isDark ? 'bg-zinc-900/60 border-white/5' : 'bg-zinc-50 border-black/5 shadow-sm'
+          }`}>
+            <div className="flex justify-between items-center mb-3">
+              <div>
+                <h4 className={`text-xs font-black uppercase tracking-wider ${isDark ? 'text-white/90' : 'text-black/95'}`}>
+                  Método de Cálculo
+                </h4>
+                <p className={`text-[9px] ${isDark ? 'text-white/30' : 'text-black/40'} tracking-wide`}>
+                  Defina o ritmo para modular passos e calorias em tempo real
+                </p>
+              </div>
+              <span className={`text-[8.5px] font-black px-2 py-0.5 rounded-full uppercase border transition-all ${
+                activityMode === 'running' 
+                  ? 'bg-rose-600/10 border-rose-500/20 text-rose-500 animate-pulse'
+                  : activityMode === 'jogging'
+                    ? 'bg-amber-600/10 border-amber-500/20 text-amber-500 animate-pulse'
+                    : 'bg-emerald-600/10 border-emerald-500/20 text-emerald-500'
+              }`}>
+                {activityMode === 'running' ? 'Módulo Corrida' : activityMode === 'jogging' ? 'Módulo Trote' : 'Módulo Caminhada'}
+              </span>
+            </div>
+
+            <div className={`p-1 rounded-2xl flex gap-1 ${isDark ? 'bg-black/40' : 'bg-black/5'}`}>
+              <button 
+                onClick={() => setActivityMode('walking')}
+                className={`flex-1 py-3 px-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-1.5 ${
+                  activityMode === 'walking' 
+                    ? isDark 
+                      ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/20' 
+                      : 'bg-white text-black shadow'
+                    : isDark ? 'text-white/40 hover:text-white/70' : 'text-black/50 hover:text-black/80'
+                }`}
+              >
+                <i className="fa-solid fa-person-walking text-xs"></i>
+                Caminhar
+              </button>
+              <button 
+                onClick={() => setActivityMode('jogging')}
+                className={`flex-1 py-3 px-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-1.5 ${
+                  activityMode === 'jogging' 
+                    ? isDark 
+                      ? 'bg-amber-600 text-white shadow-lg shadow-amber-600/20' 
+                      : 'bg-white text-black shadow'
+                    : isDark ? 'text-white/40 hover:text-white/70' : 'text-black/50 hover:text-black/80'
+                }`}
+              >
+                <i className="fa-solid fa-person-running text-xs text-amber-500"></i>
+                Trote
+              </button>
+              <button 
+                onClick={() => setActivityMode('running')}
+                className={`flex-1 py-3 px-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-1.5 ${
+                  activityMode === 'running' 
+                    ? isDark 
+                      ? 'bg-rose-600 text-white shadow-lg shadow-rose-600/20' 
+                      : 'bg-white text-black shadow'
+                    : isDark ? 'text-white/40 hover:text-white/70' : 'text-black/50 hover:text-black/80'
+                }`}
+              >
+                <i className="fa-solid fa-person-running text-xs text-rose-500"></i>
+                Correr
+              </button>
+            </div>
+
+            <p className={`text-[9px] text-center ${isDark ? 'text-white/20' : 'text-black/40'} mt-3 leading-relaxed`}>
+              {activityMode === 'running' 
+                ? '⚡ Corrida Turbinada: Utiliza 0.11 Kcal/passo com passada larga de 1.15m.' 
+                : activityMode === 'jogging'
+                  ? '🏃‍♂️ Trote Moderado: Utiliza 0.075 Kcal/passo com passada média de 92cm.'
+                  : '👣 Caminhada Firme: Utiliza 0.04 Kcal/passo com passada padrão de 76cm.'}
+            </p>
           </div>
 
           <StatsGrid stats={stats} isDark={isDark} />

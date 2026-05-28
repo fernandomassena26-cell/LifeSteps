@@ -96,6 +96,19 @@ export const DietBuilder: React.FC<Props> = ({ profile, isDark }) => {
   return (
     <div className="space-y-10 pb-32 animate-in fade-in duration-700">
       
+      {/* Aviso Profissional de Saúde */}
+      <div className={`mx-2 p-4 rounded-2xl border flex gap-3.5 items-start ${
+        isDark ? 'bg-amber-500/5 border-amber-500/20 text-amber-200/80' : 'bg-amber-50 border-amber-200 text-amber-850'
+      }`}>
+        <i className="fa-solid fa-circle-exclamation text-base text-amber-500 mt-0.5 shrink-0 animate-pulse"></i>
+        <div className="space-y-1">
+          <h4 className="text-xs font-black uppercase tracking-wider">Aviso Importante</h4>
+          <p className="text-[10px] leading-relaxed font-medium">
+            Este gerador de dieta é apenas de caráter sugestivo para fins demonstrativos. Ele <strong className={isDark ? 'text-white font-bold' : 'text-black font-bold'}>não substitui</strong> o acompanhamento e a prescrição médica ou de um profissional nutricionista qualificado. Sempre consulte um profissional antes de realizar qualquer alteração drástica na sua alimentação.
+          </p>
+        </div>
+      </div>
+
       {savedDiet && (
         <div className={`mx-2 p-6 rounded-[32px] border shadow-xl ${isDark ? 'bg-blue-600/5 border-blue-500/20' : 'bg-blue-50 border-blue-200'} animate-in slide-in-from-top-4 duration-500 relative overflow-hidden`}>
           <div className="flex justify-between items-center mb-6 relative z-10">

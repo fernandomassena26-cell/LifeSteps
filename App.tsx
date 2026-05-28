@@ -10,6 +10,7 @@ import { WorkoutHistory } from './components/WorkoutHistory';
 import { PremiumAdvantagesPage } from './components/PremiumAdvantagesPage';
 import { DietBuilder } from './components/DietBuilder';
 import { BackgroundSettingsModal } from './components/BackgroundSettingsModal';
+import { motion, AnimatePresence } from 'motion/react';
 import { DailyStats, UserProfile, Tab, UserGoal, WorkoutHistoryItem, FitnessLevel, TrainingEnvironment } from './types';
 import { 
   STORAGE_KEYS, 
@@ -25,6 +26,32 @@ import {
   TIME_PER_STEP_JOGGING
 } from './constants';
 import { getFitnessContent, calculateWorkoutCalories } from './services/fitnessService';
+
+const filterOldWorkouts = (history: WorkoutHistoryItem[]): WorkoutHistoryItem[] => {
+  if (!Array.isArray(history)) return [];
+  const oneMonthAgo = new Date();
+  oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
+  return history.filter(item => {
+    try {
+      const itemDate = new Date(item.date);
+      return itemDate >= oneMonthAgo;
+    } catch {
+      return true;
+    }
+  });
+};
+
+const getStrideLengthKm = (heightCm: number | undefined | null, mode: 'walking' | 'jogging' | 'running'): number => {
+  const height = (heightCm && heightCm > 0) ? heightCm : 175; // Altura padrão de 175cm se não informada
+  let ratio = 0.4354; // Proporção da passada de caminhada (76.2cm para 175cm)
+  if (mode === 'jogging') {
+    ratio = 0.5257; // Proporção para trote (92cm para 175cm)
+  } else if (mode === 'running') {
+    ratio = 0.65711; // Proporção para corrida (115cm para 175cm)
+  }
+  const strideMeters = (height / 100) * ratio;
+  return strideMeters / 1000; // Retorna em km
+};
 
 const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<Tab>(Tab.LOGIN);
@@ -54,6 +81,7 @@ const App: React.FC = () => {
   });
   const [showBackgroundSettings, setShowBackgroundSettings] = useState(false);
   const [bgStepsAdded, setBgStepsAdded] = useState<number | null>(null);
+  const [showStepTutorial, setShowStepTutorial] = useState(false);
   const wakeLockRef = useRef<any>(null);
 
   // Sincroniza estado do modo de atividade com localStorage
@@ -84,16 +112,14 @@ const App: React.FC = () => {
         
         if (simulatedSteps > 0) {
           let kcalFactor = CALORIES_PER_STEP;
-          let distFactor = DISTANCE_PER_STEP;
+          const distFactor = getStrideLengthKm(user?.height, savedMode);
           let timeFactor = TIME_PER_STEP;
 
           if (savedMode === 'jogging') {
             kcalFactor = CALORIES_PER_STEP_JOGGING;
-            distFactor = DISTANCE_PER_STEP_JOGGING;
             timeFactor = TIME_PER_STEP_JOGGING;
           } else if (savedMode === 'running') {
             kcalFactor = CALORIES_PER_STEP_RUNNING;
-            distFactor = DISTANCE_PER_STEP_RUNNING;
             timeFactor = TIME_PER_STEP_RUNNING;
           }
 
@@ -129,7 +155,7 @@ const App: React.FC = () => {
     // Sempre define o tempo atual como o último ativo se estiver monitorando
     localStorage.setItem('lifesteps_last_active_time', Date.now().toString());
     return currentStats;
-  }, []);
+  }, [user]);
 
   const requestWakeLock = async () => {
     if ('wakeLock' in navigator) {
@@ -298,7 +324,14 @@ const App: React.FC = () => {
         }
 
         const savedHistory = localStorage.getItem(userHistoryKey);
-        if (savedHistory) setWorkoutHistory(JSON.parse(savedHistory));
+        if (savedHistory) {
+          try {
+            const parsed = JSON.parse(savedHistory);
+            setWorkoutHistory(filterOldWorkouts(parsed));
+          } catch {
+            setWorkoutHistory([]);
+          }
+        }
 
         const savedPlan = localStorage.getItem(userPlanKey);
         if (savedPlan) setPremiumPlan(JSON.parse(savedPlan));
@@ -428,16 +461,16 @@ const App: React.FC = () => {
   const addStep = useCallback(() => {
     setStats(prev => {
       let kcalFactor = CALORIES_PER_STEP;
-      let distFactor = DISTANCE_PER_STEP;
+      let distFactor = getStrideLengthKm(user?.height, 'walking');
       let timeFactor = TIME_PER_STEP;
 
       if (activityMode === 'jogging') {
         kcalFactor = CALORIES_PER_STEP_JOGGING;
-        distFactor = DISTANCE_PER_STEP_JOGGING;
+        distFactor = getStrideLengthKm(user?.height, 'jogging');
         timeFactor = TIME_PER_STEP_JOGGING;
       } else if (activityMode === 'running') {
         kcalFactor = CALORIES_PER_STEP_RUNNING;
-        distFactor = DISTANCE_PER_STEP_RUNNING;
+        distFactor = getStrideLengthKm(user?.height, 'running');
         timeFactor = TIME_PER_STEP_RUNNING;
       }
 
@@ -606,7 +639,16 @@ const App: React.FC = () => {
     }
 
     const savedHistory = localStorage.getItem(userHistoryKey);
-    setWorkoutHistory(savedHistory ? JSON.parse(savedHistory) : []);
+    if (savedHistory) {
+      try {
+        const parsed = JSON.parse(savedHistory);
+        setWorkoutHistory(filterOldWorkouts(parsed));
+      } catch {
+        setWorkoutHistory([]);
+      }
+    } else {
+      setWorkoutHistory([]);
+    }
 
     const userPlanKey = `lifesteps_premium_plan_${userProfile.id}`;
     const savedPlan = localStorage.getItem(userPlanKey);
@@ -893,11 +935,79 @@ const App: React.FC = () => {
 
             <p className={`text-[9px] text-center ${isDark ? 'text-white/20' : 'text-black/40'} mt-3 leading-relaxed`}>
               {activityMode === 'running' 
-                ? '⚡ Corrida Turbinada: Utiliza 0.11 Kcal/passo com passada larga de 1.15m.' 
+                ? `⚡ Corrida Turbinada: 0.11 Kcal/passo. Sua passada personalizada é de ${(getStrideLengthKm(user?.height, 'running') * 100000).toFixed(1)} cm (baseada na sua altura de ${user?.height || 175}cm).` 
                 : activityMode === 'jogging'
-                  ? '🏃‍♂️ Trote Moderado: Utiliza 0.075 Kcal/passo com passada média de 92cm.'
-                  : '👣 Caminhada Firme: Utiliza 0.04 Kcal/passo com passada padrão de 76cm.'}
+                  ? `🏃‍♂️ Trote Moderado: 0.075 Kcal/passo. Sua passada personalizada é de ${(getStrideLengthKm(user?.height, 'jogging') * 100000).toFixed(1)} cm (baseada na sua altura de ${user?.height || 175}cm).`
+                  : `👣 Caminhada Firme: 0.04 Kcal/passo. Sua passada personalizada é de ${(getStrideLengthKm(user?.height, 'walking') * 100000).toFixed(1)} cm (baseada na sua altura de ${user?.height || 175}cm).`}
             </p>
+          </div>
+
+          {/* Guia de Uso Correto do Contador de Passos (Colapsável) */}
+          <div className={`mb-6 rounded-3xl border transition-all ${
+            isDark 
+              ? 'bg-blue-600/5 border-blue-500/10 text-white/80' 
+              : 'bg-blue-50/50 border-blue-200/50 text-blue-950'
+          }`}>
+            <button
+              onClick={() => setShowStepTutorial(!showStepTutorial)}
+              className="w-full flex items-center justify-between p-5 text-left focus:outline-none rounded-3xl"
+            >
+              <div className="flex gap-3 items-center">
+                <div className="w-8 h-8 rounded-lg bg-blue-600 text-white flex items-center justify-center shrink-0 animate-pulse">
+                  <i className="fa-solid fa-circle-info text-sm"></i>
+                </div>
+                <div>
+                  <h4 className={`text-xs font-black uppercase tracking-wider ${isDark ? 'text-white' : 'text-zinc-900'}`}>
+                    Como usar o contador corretamente?
+                  </h4>
+                  <p className={`text-[9px] ${isDark ? 'text-white/30' : 'text-zinc-500'} tracking-wide`}>
+                    {showStepTutorial ? 'Clique para fechar o informativo' : 'Clique para ver 4 dicas de precisão'}
+                  </p>
+                </div>
+              </div>
+              <div className="w-6 h-6 flex items-center justify-center">
+                <i className={`fa-solid fa-chevron-down text-xs text-blue-500 transition-transform duration-300 ${showStepTutorial ? 'rotate-180' : ''}`}></i>
+              </div>
+            </button>
+
+            <AnimatePresence initial={false}>
+              {showStepTutorial && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: "auto", opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.25, ease: "easeInOut" }}
+                  className="overflow-hidden"
+                >
+                  <div className="p-5 pt-0 border-t border-dashed border-blue-500/10 space-y-2.5 text-[10.5px] font-medium leading-relaxed pl-5 pr-5">
+                    <div className="flex gap-2">
+                      <span className="text-blue-500 font-bold">1.</span>
+                      <p>
+                        <strong className={isDark ? 'text-white font-bold' : 'text-zinc-900 font-bold'}>Posicionamento Corporal:</strong> O celular registra passadas de forma ideal quando levado no bolso da calça, bermuda ou shorts. Evite segurar na mão ou levar em bolsas/mochilas soltas se quiser total acuidade de movimentos.
+                      </p>
+                    </div>
+                    <div className="flex gap-2">
+                      <span className="text-blue-500 font-bold">2.</span>
+                      <p>
+                        <strong className={isDark ? 'text-white font-bold' : 'text-zinc-900 font-bold'}>Rastreamento em Segundo Plano:</strong> Ative a chave de <strong className="text-blue-500 font-bold">Rastreamento Ativo</strong> simulada acima para acumular dados passivos de passos corporais mesmo quando o navegador estiver fechado ou minimizado.
+                      </p>
+                    </div>
+                    <div className="flex gap-2">
+                      <span className="text-blue-500 font-bold">3.</span>
+                      <p>
+                        <strong className={isDark ? 'text-white font-bold' : 'text-zinc-900 font-bold'}>Otimização de Bateria (Android/iOS):</strong> Acesse as configurações do seu smartphone e remova restrições de economia de bateria no aplicativo. Isso impede que o sistema operacional pause as leituras do sensor ao bloquear a tela do celular.
+                      </p>
+                    </div>
+                    <div className="flex gap-2">
+                      <span className="text-blue-500 font-bold">4.</span>
+                      <p>
+                        <strong className={isDark ? 'text-white font-bold' : 'text-zinc-900 font-bold'}>Sensores Físicos Ativos:</strong> Garanta o livre acesso à atividade física (permissão requerida no aparelho) para o processamento de hardware acelerado, o qual otimiza o consumo energético da bateria enquanto você caminha.
+                      </p>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
 
           <StatsGrid stats={stats} isDark={isDark} />
@@ -919,6 +1029,19 @@ const App: React.FC = () => {
             <PremiumAdvantagesPage onUpgrade={() => { if(user) { setUser({...user, isPremium: true}); } }} isDark={isDark} />
           ) : (
             <div className="animate-in fade-in slide-in-from-bottom-4">
+               {/* Aviso Médico e Profissional de Educação Física */}
+               <div className={`mt-6 p-4 rounded-2xl border flex gap-3.5 items-start ${
+                 isDark ? 'bg-amber-500/5 border-amber-500/20 text-amber-200/80' : 'bg-amber-50 border-amber-200 text-amber-850'
+               }`}>
+                 <i className="fa-solid fa-circle-exclamation text-base text-amber-500 mt-0.5 shrink-0 animate-pulse"></i>
+                 <div className="space-y-1">
+                   <h4 className="text-xs font-black uppercase tracking-wider">Aviso de Saúde / Treino</h4>
+                   <p className="text-[10px] leading-relaxed font-medium">
+                     As rotinas de treino geradas são sugestões de apoio educacional e motivacional. Elas <strong className={isDark ? 'text-white font-bold' : 'text-black font-bold'}>não substituem</strong> a avaliação física e médica nem a orientação de um profissional de educação física habilitado (CREF). Interrompa os exercícios imediatamente se sentir dor ou mal-estar e procure um especialista.
+                   </p>
+                 </div>
+               </div>
+
                {loadingPlan ? (
                  <div className="flex flex-col items-center justify-center py-20 text-center">
                     <i className="fa-solid fa-circle-notch animate-spin text-4xl text-blue-600 mb-4"></i>

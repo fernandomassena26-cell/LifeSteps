@@ -273,7 +273,9 @@ export const getFitnessContent = async (type: 'workout' | 'diet', goal: UserGoal
             { name: "Caminhada no Lugar", sets: "1", reps: "15 min", instructions: "Marche sem sair do lugar, elevando levemente os joelhos.", tips: "Mantenha o balanço dos braços naturalmente." },
             { name: "Sentar e Levantar", sets: "3", reps: "12", instructions: "Use uma cadeira firme, sente e levante sem usar o apoio dos braços.", tips: "Ideal para fortalecer as pernas de forma funcional." },
             { name: "Alongamento de Braços", sets: "1", reps: "5 min", instructions: "Estique os braços para cima, para os lados e para trás.", tips: "Respire profundamente para relaxar os tecidos." },
-            { name: "Rotação de Ombros", sets: "2", reps: "15", instructions: "Gire os ombros em círculos.", tips: "Solta a tensão." }
+            { name: "Rotação de Ombros", sets: "2", reps: "15", instructions: "Gire os ombros em círculos.", tips: "Solta a tensão." },
+            { name: "Elevação de Calcanhar (Panturrilha)", sets: "2", reps: "15", instructions: "Fique na ponta dos pés de forma suave apoiando-se em uma parede para equilíbrio.", tips: "Trabalha a circulação das pernas e força do tornozelo." },
+            { name: "Inclinação Lateral do Tronco", sets: "2", reps: "10 cada lado", instructions: "Mantenha as pernas firmes e desça a mão lateralmente pela coxa devagar.", tips: "Melhora a mobilidade da coluna e das costelas." }
           ]
         },
         light: {
@@ -282,7 +284,9 @@ export const getFitnessContent = async (type: 'workout' | 'diet', goal: UserGoal
             { name: "Escadas (Se disponível)", sets: "1", reps: "10 min", instructions: "Suba e desça degraus em ritmo constante.", tips: "Cuidado com o equilíbrio, use o corrimão se necessário." },
             { name: "Abdominal Crunch", sets: "3", reps: "15", instructions: "Deite-se, mãos na nuca e tire apenas as escápulas do chão.", tips: "Não puxe o pescoço, use a força do abdômen." },
             { name: "Elevação Lateral com Garrafas", sets: "3", reps: "15", instructions: "Use garrafas de água como peso, eleve os braços até a altura dos ombros.", tips: "Mantenha os cotovelos levemente flexionados." },
-            { name: "Agachamento Parcial", sets: "3", reps: "15", instructions: "Desça apenas metade do caminho.", tips: "Foco na técnica." }
+            { name: "Agachamento Parcial", sets: "3", reps: "15", instructions: "Desça apenas metade do caminho.", tips: "Foco na técnica e no alinhamento das pernas." },
+            { name: "Chute Traseiro para Glúteos", sets: "3", reps: "12 cada lado", instructions: "Apoiando as mãos em uma cadeira ou sofá, estique uma perna para trás contraindo o glúteo.", tips: "Mantenha o tronco estável durante o chute." },
+            { name: "Crucifixo Inverso com Garrafinha", sets: "3", reps: "12", instructions: "Incline o tronco levemente à frente mantendo a coluna alinhada e abra os braços com os pesos leves.", tips: "Excelente para a postura e força das costas superiores." }
           ]
         },
         moderate: {
@@ -298,10 +302,12 @@ export const getFitnessContent = async (type: 'workout' | 'diet', goal: UserGoal
         hard: {
           title: "Insanidade em Casa",
           items: [
-            { name: "Burpees Completos", sets: "5", reps: "15", instructions: "Movimento total with flexão de braço no chão e salto explosivo.", tips: "Mantenha a fluidez do movimento, sem pausas entre as etapas." },
+            { name: "Burpees Completos", sets: "5", reps: "15", instructions: "Movimento total com flexão de braço no chão e salto explosivo.", tips: "Mantenha a fluidez do movimento, sem pausas entre as etapas." },
             { name: "Agachamento com Salto", sets: "4", reps: "15", instructions: "Agache e salte o mais alto que puder, amortecendo a queda com as pontas dos pés.", tips: "Explosão é o foco aqui." },
             { name: "Flexão Diamante", sets: "4", reps: "12", instructions: "Mãos juntas no chão formando um diamante, desça o peito até as mãos.", tips: "Trabalha intensamente o tríceps e a parte interna do peito." },
-            { name: "Salto Lateral", sets: "4", reps: "20", instructions: "Salte lateralmente sobre uma linha imaginária.", tips: "Agilidade." }
+            { name: "Salto Lateral", sets: "4", reps: "20", instructions: "Salte lateralmente sobre uma linha imaginária.", tips: "Agilidade." },
+            { name: "Prancha Alta com Toque no Tornozelo", sets: "4", reps: "15", instructions: "Na posição de prancha, eleve o quadril e toque a mão no tornozelo oposto alternadamente.", tips: "Exige bastante do abdômen e da coordenação motora." },
+            { name: "Afundo com Salto (Jump Lunges)", sets: "4", reps: "10 cada lado", instructions: "Faça um afundo e dê um salto para trocar a posição das pernas no ar de forma dinâmica.", tips: "Queima calórica massiva e trabalho de pernas de alta intensidade." }
           ]
         },
         very_hard: {
@@ -310,7 +316,9 @@ export const getFitnessContent = async (type: 'workout' | 'diet', goal: UserGoal
             { name: "Prisioner Squats", sets: "1", reps: "100", instructions: "Mãos atrás da cabeça, agachamento profundo. Faça no menor tempo possível.", tips: "Divida em blocos se necessário, mas não perca o foco." },
             { name: "Flexão de Braço", sets: "1", reps: "50", instructions: "Peito encosta no chão a cada repetição.", tips: "Mantenha a postura mesmo em fadiga." },
             { name: "Abdominal infra", sets: "1", reps: "100", instructions: "Deitado, eleve as pernas juntas sem tocar o chão ao descer.", tips: "Pressione a lombar contra o colchonete." },
-            { name: "Sprawl", sets: "4", reps: "15", instructions: "Movimento de defesa de queda, jogue as pernas para trás e o quadril no chão.", tips: "Alta demanda metabólica." }
+            { name: "Sprawl", sets: "4", reps: "15", instructions: "Movimento de defesa de queda, jogue as pernas para trás e o quadril no chão.", tips: "Alta demanda metabólica." },
+            { name: "Burpee com Polichinelo Duplo", sets: "5", reps: "12", instructions: "Execute um burpee e, no topo do salto, faça dois polichinelos rápidos no ar ou ao cair.", tips: "Eleva o VO2 máximo a níveis extremos." },
+            { name: "Prancha Walkouts (Trabalho de Lagarta)", sets: "4", reps: "12", instructions: "A partir de pé, coloque as mãos no chão, caminhe até a prancha de braços estendidos e retorne.", tips: "Fortalecimento total de core e estabilização de ombros." }
           ]
         }
       },
@@ -320,7 +328,9 @@ export const getFitnessContent = async (type: 'workout' | 'diet', goal: UserGoal
           items: [
             { name: "Flexão na Parede", sets: "3", reps: "15", instructions: "Fique de frente para a parede e faça a flexão apoiando as mãos.", tips: "Ideal para quem está começando a ganhar força nos braços." },
             { name: "Agachamento Isométrico", sets: "3", reps: "20 seg", instructions: "Encoste na parede e fique na posição de agachado.", tips: "Mantenha o ângulo de 90 graus nas pernas." },
-            { name: "Elevação Pélvica", sets: "3", reps: "15", instructions: "Eleve o quadril enquanto deitado.", tips: "Ativação de glúteos." }
+            { name: "Elevação Pélvica", sets: "3", reps: "15", instructions: "Eleve o quadril enquanto deitado.", tips: "Ativação de glúteos e posterior de coxa." },
+            { name: "Rosca Isométrica com Toalha", sets: "3", reps: "20 seg", instructions: "Pise em uma toalha e puxe as pontas com os braços flexionados em 90 graus, fazendo força de bíceps.", tips: "Excelente exercício isométrico seguro para ganho de força inicial." },
+            { name: "Super-homem Isométrico Leve", sets: "3", reps: "12 seg", instructions: "Deitado de bruços, eleve levemente o peito e as mãos do chão, segurando no topo.", tips: "Ativa a musculatura postural e lombar de forma suave." }
           ]
         },
         light: {
@@ -328,7 +338,9 @@ export const getFitnessContent = async (type: 'workout' | 'diet', goal: UserGoal
           items: [
             { name: "Flexão de Joelhos", sets: "3", reps: "12", instructions: "Flexão de braço com apoio dos joelhos no solo.", tips: "Mantenha o alinhamento do tronco com as coxas." },
             { name: "Elevação de Panturrilha", sets: "3", reps: "20", instructions: "Fique na ponta dos pés e desça devagar.", tips: "Use um degrau para aumentar a amplitude se puder." },
-            { name: "Prancha Abdominal", sets: "3", reps: "30 seg", instructions: "Mantenha o corpo reto apoiado nos antebraços.", tips: "Core firme." }
+            { name: "Prancha Abdominal", sets: "3", reps: "30 seg", instructions: "Mantenha o corpo reto apoiado nos antebraços.", tips: "Core firme e bacia alinhada com os ombros nos 30 segundos." },
+            { name: "Agachamento Livre Clássico", sets: "3", reps: "12", instructions: "Agache até formar 90 graus nos joelhos, mantendo o abdômen contraído e peso nos calcanhares.", tips: "Mantenha os joelhos alinhados com as pontas dos pés." },
+            { name: "Extensão de Tríceps com Resistência", sets: "3", reps: "12 cada lado", instructions: "Segure uma toalha atrás da nuca puxando com uma mão e a outra esticando para cima gerando tensão.", tips: "Método inteligente para exercitar o tríceps sem pesos." }
           ]
         },
         moderate: {
@@ -345,8 +357,10 @@ export const getFitnessContent = async (type: 'workout' | 'diet', goal: UserGoal
           title: "Hipertrofia Calistênica",
           items: [
             { name: "Flexão Arqueiro", sets: "4", reps: "8 cada lado", instructions: "Mãos bem afastadas, desça para um lado enquanto o outro braço estica.", tips: "Muito exigente para o peitoral e ombros." },
-            { name: "Agachamento Pistol (Adaptado)", sets: "4", reps: "8 cada perna", instructions: "Agache with uma perna só usando apoio se necessário.", tips: "Desenvolve força absurda nas pernas." },
-            { name: "Burpee com Flexão Explosiva", sets: "4", reps: "10", instructions: "Burpee tradicionais with empurrão explosivo na flexão.", tips: "Potência pura." }
+            { name: "Agachamento Pistol (Adaptado)", sets: "4", reps: "8 cada perna", instructions: "Agache com uma perna só usando apoio se necessário.", tips: "Desenvolve força absurda nas pernas." },
+            { name: "Burpee com Flexão Explosiva", sets: "4", reps: "10", instructions: "Burpee tradicionais com empurrão explosivo na flexão.", tips: "Potência pura." },
+            { name: "Flexão Inclinada (Pés no Sofá)", sets: "4", reps: "12", instructions: "Coloque os pés apoiados no sofá ou cadeira e as mãos no chão para fazer a flexão.", tips: "Foco intenso na porção superior do peitoral e ombros de forma avançada." },
+            { name: "Elevação Pélvica Unilateral", sets: "4", reps: "12 cada perna", instructions: "Deitado, mantenha uma perna esticada para cima e empurre o quadril usando apenas a de apoio.", tips: "Excelente hipertrofia isolada de glúteos e posterior de coxa." }
           ]
         },
         very_hard: {
@@ -354,7 +368,9 @@ export const getFitnessContent = async (type: 'workout' | 'diet', goal: UserGoal
           items: [
             { name: "Flexão Plantar (Handstand Pushup)", sets: "4", reps: "6-8", instructions: "Flexão de ponta cabeça apoiado na parede.", tips: "Foco total nos ombros, cuidado com a descida." },
             { name: "Flexão Explosiva", sets: "4", reps: "12", instructions: "Tire as mãos do chão na subida com um empurrão potente.", tips: "Bata palmas se conseguir." },
-            { name: "Abdominal em V (V-Ups)", sets: "4", reps: "15", instructions: "Suba tronco e pernas simultaneamente tocando os pés.", tips: "Contração máxima." }
+            { name: "Abdominal em V (V-Ups)", sets: "4", reps: "15", instructions: "Suba tronco e pernas simultaneamente tocando os pés.", tips: "Contração máxima da parede abdominal superior e inferior." },
+            { name: "Pistol Squat Livre (Sem Apoios)", sets: "4", reps: "8 cada perna", instructions: "Agache totalmente com uma perna só de forma livre, mantendo a outra suspensa à frente.", tips: "Equilíbrio, controle articular e força de altíssimo nível." },
+            { name: "Flexão Homem-Aranha (Spiderman Pushups)", sets: "4", reps: "12", instructions: "Faça uma flexão e traga o joelho lateralmente em direção ao cotovelo ao descer.", tips: "Força extrema de empurrar combinada com sobrecarga nos oblíquos." }
           ]
         }
       },
@@ -362,17 +378,21 @@ export const getFitnessContent = async (type: 'workout' | 'diet', goal: UserGoal
         very_light: {
           title: "Equilíbrio e Bem-Estar",
           items: [
-            { name: "Círculos com os Braços", sets: "1", reps: "5 min", instructions: "Gire os braços para frente e para trás.", tips: "Solta a articulação do ombro." },
-            { name: "Rotação de Tronco", sets: "1", reps: "5 min", instructions: "Gire o corpo para os lados levemente.", tips: "Ótimo para a coluna." },
-            { name: "Mobilidade de Quadril", sets: "2", reps: "15", instructions: "Abra a perna lateralmente e gire suavemente.", tips: "Melhora a passada." }
+            { name: "Círculos com os Braços", sets: "1", reps: "5 min", instructions: "Gire os braços para frente e para trás.", tips: "Solta a articulação do ombro de forma terapêutica." },
+            { name: "Rotação de Tronco", sets: "1", reps: "5 min", instructions: "Gire o corpo para os lados levemente de forma ritmada.", tips: "Ótimo para lubrificar as vértebras da coluna." },
+            { name: "Mobilidade de Quadril", sets: "2", reps: "15", instructions: "Abra a perna lateralmente e gire suavemente.", tips: "Melhora a passada no dia a dia." },
+            { name: "Mobilidade de Tornozelo na Parede", sets: "2", reps: "12 cada pé", instructions: "Apoie as mãos na parede e empurre o joelho para frente sem tirar o calcanhar oposto do chão.", tips: "Melhora a mobilidade de dorsiflexão antes das caminhadas." },
+            { name: "Circundução de Pescoço Aliviadora", sets: "1", reps: "2 min", instructions: "Rotacione suavemente a cabeça em sentido horário e anti-horário respirando compassadamente.", tips: "Alivia a tensão acumulada no trapézio superior." }
           ]
         },
         light: {
           title: "Ativação Matinal",
           items: [
-            { name: "Polichinelos Leves", sets: "3", reps: "30 seg", instructions: "Movimento coordenado mas sem impacto excessivo.", tips: "Foque na constância." },
-            { name: "Equilíbrio Unipodal", sets: "2", reps: "30 seg cada perna", instructions: "Fique em um pé só.", tips: "Trabalha a estabilidade do tornozelo e core." },
-            { name: "Gato e Camelo", sets: "3", reps: "12", instructions: "De joelhos, curve e estenda a coluna.", tips: "Saúde vertebral." }
+            { name: "Polichinelos Leves", sets: "3", reps: "30 seg", instructions: "Movimento coordenado mas sem impacto excessivo.", tips: "Foque na constância do movimento ritmado." },
+            { name: "Equilíbrio Unipodal", sets: "2", reps: "30 seg cada perna", instructions: "Fique em um pé só tentando manter-se o mais estável possível.", tips: "Excelente propriocepção para reabilitação e controle de tornozelo." },
+            { name: "Gato e Camelo", sets: "3", reps: "12", instructions: "De joelhos, curve e estenda a coluna olhando para cima e para baixo alternadamente.", tips: "Saúde vertebral essencial anti-sedentarismo." },
+            { name: "Passeio do Caranguejo Leve", sets: "3", reps: "10 passos", instructions: "Com as costas para o chão, quadris suspensos, use mãos e pés para andar curto.", tips: "Excelente ativação muscular generalizada de ombros e lombar." },
+            { name: "Superman Bird Dog Alternado", sets: "3", reps: "12 totais", instructions: "Em 4 apoios, estenda o braço direito e a perna esquerda, depois alterne.", tips: "Fortalecimento lombo-pélvico seguro e coordenador." }
           ]
         },
         moderate: {
@@ -390,15 +410,19 @@ export const getFitnessContent = async (type: 'workout' | 'diet', goal: UserGoal
           items: [
             { name: "Burpees", sets: "3", reps: "12", instructions: "Agacha, estica, volta e salta.", tips: "Mantém o coração acelerado." },
             { name: "Prancha com Toque no Ombro", sets: "3", reps: "20 totais", instructions: "Na posição de prancha alta, toque o ombro oposto.", tips: "Tente não balançar o quadril." },
-            { name: "Escalador", sets: "3", reps: "45 seg", instructions: "Traga o joelho ao peito rápido.", tips: "Intensidade cardio." }
+            { name: "Escalador", sets: "3", reps: "45 seg", instructions: "Traga o joelho ao peito rápido.", tips: "Intensidade cardio elevada." },
+            { name: "Meio Agachamento Lateral Isométrico", sets: "3", reps: "45 seg", instructions: "Mantenha o corpo em meio agachamento e caminhe lateralmente de forma constante.", tips: "Trabalho excelente de estabilização lateral do quadril." },
+            { name: "Flexão com Rotação de Tronco (T-Pushups)", sets: "4", reps: "12", instructions: "Após cada flexão, rotacione o corpo elevando uma das mãos ao teto.", tips: "Desafia o peito e a força rotacional oblíqua do tronco." }
           ]
         },
         very_hard: {
           title: "Desafio de Condicionamento",
           items: [
             { name: "Salto em Caixa (ou degrau alto)", sets: "4", reps: "15", instructions: "Salte em cima de um objeto firme.", tips: "Extensão total do quadril no topo." },
-            { name: "Escalador Explosivo", sets: "4", reps: "45 seg", instructions: "Mountain climbers em alta velocidade.", tips: "Foco na agilidade." },
-            { name: "Burpee 180 Graus", sets: "4", reps: "10", instructions: "Faça o burpee e salte girando 180 graus.", tips: "Desafio espacial e físico." }
+            { name: "Escalador Explosivo", sets: "4", reps: "45 seg", instructions: "Mountain climbers em alta velocidade.", tips: "Foco na agilidade e explosão metabólica." },
+            { name: "Burpee 180 Graus", sets: "4", reps: "10", instructions: "Faça o burpee e salte girando 180 graus.", tips: "Desafio espacial, labiríntico e físico de alta classe." },
+            { name: "Prancha Estrela Estabilizadora", sets: "4", reps: "45 seg", instructions: "Em posição de prancha lateral, eleve um braço e uma perna apontando para o teto de forma isométrica.", tips: "Requer controle unilateral absurdo." },
+            { name: "Agachamento Búlgaro Saltado (Explosivo)", sets: "3", reps: "10 cada lado", instructions: "Apoie um pé atrás no sofá, faça o agachamento de uma perna e salte estendendo a perna de apoio explosivamente.", tips: "Potência extrema isolada em uma perna, excelente ativador de glúteos." }
           ]
         }
       }

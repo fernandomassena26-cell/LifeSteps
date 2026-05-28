@@ -21,6 +21,10 @@ export const WorkoutHistory: React.FC<WorkoutHistoryProps> = ({ history, isDark 
 
   return (
     <div className="space-y-3">
+      <div className={`text-[9px] ${isDark ? 'text-white/30' : 'text-zinc-500'} flex items-center gap-1.5 px-1 py-0.5 font-medium`}>
+        <i className="fa-solid fa-circle-info text-[10px] text-blue-500 shrink-0"></i>
+        <span>Histórico retém treinos dos últimos 30 dias (itens anteriores são limpos automaticamente).</span>
+      </div>
       {history.map((item) => (
         <div 
           key={item.id} 

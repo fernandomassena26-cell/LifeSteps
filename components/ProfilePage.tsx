@@ -232,7 +232,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
       </div>
 
       <div className="mt-12 text-center">
-        <p className={`${isDark ? 'text-white/10' : 'text-black/10'} text-[8px] uppercase tracking-[0.4em] font-black`}>lifesteps pro v1.0.4</p>
+        <p className={`${isDark ? 'text-white/10' : 'text-black/10'} text-[8px] uppercase tracking-[0.4em] font-black`}>fitpulse pro v1.0.4</p>
       </div>
     </div>
   );

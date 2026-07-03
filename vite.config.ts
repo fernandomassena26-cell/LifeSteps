@@ -16,8 +16,8 @@ export default defineConfig(({ mode }) => {
           registerType: 'autoUpdate',
           includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
           manifest: {
-            name: 'LifeSteps',
-            short_name: 'LifeSteps',
+            name: 'Steply',
+            short_name: 'Steply',
             description: 'Pedometer de Alta Performance',
             theme_color: '#050505',
             icons: [

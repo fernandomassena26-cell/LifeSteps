@@ -75,9 +75,9 @@ const App: React.FC = () => {
   const [stats, setStats] = useState<DailyStats>({ steps: 0, calories: 0, distance: 0, activeTime: 0, waterIntake: 0 });
   const [workoutHistory, setWorkoutHistory] = useState<WorkoutHistoryItem[]>([]);
   
-  const [isTracking, setIsTracking] = useState(() => localStorage.getItem('lifesteps_is_tracking') === 'true');
+  const [isTracking, setIsTracking] = useState(() => localStorage.getItem('steply_is_tracking') === 'true');
   const [activityMode, setActivityMode] = useState<'walking' | 'jogging' | 'running'>(() => {
-    return (localStorage.getItem('lifesteps_activity_mode') as 'walking' | 'jogging' | 'running') || 'walking';
+    return (localStorage.getItem('steply_activity_mode') as 'walking' | 'jogging' | 'running') || 'walking';
   });
   const [showBackgroundSettings, setShowBackgroundSettings] = useState(false);
   const [bgStepsAdded, setBgStepsAdded] = useState<number | null>(null);
@@ -86,76 +86,14 @@ const App: React.FC = () => {
 
   // Sincroniza estado do modo de atividade com localStorage
   useEffect(() => {
-    localStorage.setItem('lifesteps_activity_mode', activityMode);
+    localStorage.setItem('steply_activity_mode', activityMode);
   }, [activityMode]);
 
   const checkAndRecoverBackgroundSteps = useCallback((currentStats: DailyStats, userId: string): DailyStats => {
-    const wasTracking = localStorage.getItem('lifesteps_is_tracking') === 'true';
-    const savedMode = (localStorage.getItem('lifesteps_activity_mode') as 'walking' | 'jogging' | 'running') || 'walking';
-    const lastActiveStr = localStorage.getItem('lifesteps_last_active_time');
-    
-    if (wasTracking && lastActiveStr) {
-      const lastActive = parseInt(lastActiveStr);
-      const now = Date.now();
-      const elapsedMs = now - lastActive;
-      const MIN_INTERVAL_MS = 5000;
-      
-      if (elapsedMs > MIN_INTERVAL_MS) {
-        // Simula passos: ~1.35 passos por segundo (81 passos/min) se caminhando,
-        // ~1.8 passos por segundo (108 passos/min) se trotando,
-        // ou um pouco mais rápido se correndo (~2.3 passos por segundo = 138 passos/min)
-        let stepRate = 1.35;
-        if (savedMode === 'jogging') stepRate = 1.8;
-        else if (savedMode === 'running') stepRate = 2.3;
-
-        const simulatedSteps = Math.min(10000, Math.floor((elapsedMs / 1000) * stepRate));
-        
-        if (simulatedSteps > 0) {
-          let kcalFactor = CALORIES_PER_STEP;
-          const distFactor = getStrideLengthKm(user?.height, savedMode);
-          let timeFactor = TIME_PER_STEP;
-
-          if (savedMode === 'jogging') {
-            kcalFactor = CALORIES_PER_STEP_JOGGING;
-            timeFactor = TIME_PER_STEP_JOGGING;
-          } else if (savedMode === 'running') {
-            kcalFactor = CALORIES_PER_STEP_RUNNING;
-            timeFactor = TIME_PER_STEP_RUNNING;
-          }
-
-          const addedCalories = Math.round(simulatedSteps * kcalFactor * 10) / 10;
-          const addedDistance = Math.round(simulatedSteps * distFactor * 100) / 100;
-          const addedActiveTime = Math.floor((simulatedSteps * timeFactor) * 60);
-
-          const updatedStats = {
-            ...currentStats,
-            steps: currentStats.steps + simulatedSteps,
-            calories: Math.round((currentStats.calories + addedCalories) * 10) / 10,
-            distance: Math.round((currentStats.distance + addedDistance) * 100) / 100,
-            activeTime: currentStats.activeTime + addedActiveTime,
-            waterIntake: currentStats.waterIntake
-          };
-
-          // Salva imediatamente
-          localStorage.setItem(`${STORAGE_KEYS.STATS}_${userId}`, JSON.stringify({
-            date: new Date().toDateString(),
-            data: updatedStats
-          }));
-
-          // Configura indicador visual para exibir o toast de passos acumulados
-          setBgStepsAdded(simulatedSteps);
-          
-          // Reseta o timestamp de atividade para agora
-          localStorage.setItem('lifesteps_last_active_time', now.toString());
-          
-          return updatedStats;
-        }
-      }
-    }
-    // Sempre define o tempo atual como o último ativo se estiver monitorando
-    localStorage.setItem('lifesteps_last_active_time', Date.now().toString());
+    // A funcionalidade de simulação em segundo plano foi desativada.
+    // O app funciona apenas com a tela ligada em primeiro plano.
     return currentStats;
-  }, [user]);
+  }, []);
 
   const requestWakeLock = async () => {
     if ('wakeLock' in navigator) {
@@ -193,7 +131,7 @@ const App: React.FC = () => {
   useEffect(() => {
     if (!isTracking) return;
     const saveActiveTime = () => {
-      localStorage.setItem('lifesteps_last_active_time', Date.now().toString());
+      localStorage.setItem('steply_last_active_time', Date.now().toString());
     };
     saveActiveTime();
     const interval = setInterval(saveActiveTime, 1000);
@@ -202,7 +140,7 @@ const App: React.FC = () => {
 
   // Sincroniza estado de rastreamento com localStorage
   useEffect(() => {
-    localStorage.setItem('lifesteps_is_tracking', isTracking ? 'true' : 'false');
+    localStorage.setItem('steply_is_tracking', isTracking ? 'true' : 'false');
   }, [isTracking]);
 
   useEffect(() => {
@@ -211,19 +149,19 @@ const App: React.FC = () => {
         if (wakeLockRef.current !== null) {
           await requestWakeLock();
         }
-        document.title = 'LifeSteps';
+        document.title = 'FitPulse';
         if (isTracking && user) {
           setStats(prev => checkAndRecoverBackgroundSteps(prev, user.id));
         }
       } else if (document.visibilityState === 'hidden' && isTracking) {
         document.title = `👣 ${stats.steps} passos`;
-        localStorage.setItem('lifesteps_last_active_time', Date.now().toString());
+        localStorage.setItem('steply_last_active_time', Date.now().toString());
       }
     };
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
-      document.title = 'LifeSteps';
+      document.title = 'FitPulse';
     };
   }, [isTracking, stats.steps, checkAndRecoverBackgroundSteps, user]);
   const [premiumPlan, setPremiumPlan] = useState<any>(null);
@@ -311,7 +249,7 @@ const App: React.FC = () => {
         // Carrega dados vinculados ao ID do usuário
         const userStatsKey = `${STORAGE_KEYS.STATS}_${parsedUser.id}`;
         const userHistoryKey = `${STORAGE_KEYS.WORKOUT_HISTORY}_${parsedUser.id}`;
-        const userPlanKey = `lifesteps_premium_plan_${parsedUser.id}`;
+        const userPlanKey = `steply_premium_plan_${parsedUser.id}`;
         
         const savedStats = localStorage.getItem(userStatsKey);
         const today = new Date().toDateString();
@@ -367,7 +305,7 @@ const App: React.FC = () => {
       }));
 
       // Atualiza histórico diário para o gráfico semanal
-      const historyKey = `lifesteps_daily_history_${user.id}`;
+      const historyKey = `steply_daily_history_${user.id}`;
       const history = JSON.parse(localStorage.getItem(historyKey) || '{}');
       history[today] = stats;
 
@@ -420,7 +358,7 @@ const App: React.FC = () => {
   // 5. PERSISTÊNCIA DO PLANO PREMIUM
   useEffect(() => {
     if (user) {
-      const key = `lifesteps_premium_plan_${user.id}`;
+      const key = `steply_premium_plan_${user.id}`;
       if (premiumPlan) {
         localStorage.setItem(key, JSON.stringify(premiumPlan));
       } else if (isLoggedIn) {
@@ -650,7 +588,7 @@ const App: React.FC = () => {
       setWorkoutHistory([]);
     }
 
-    const userPlanKey = `lifesteps_premium_plan_${userProfile.id}`;
+    const userPlanKey = `steply_premium_plan_${userProfile.id}`;
     const savedPlan = localStorage.getItem(userPlanKey);
     setPremiumPlan(savedPlan ? JSON.parse(savedPlan) : null);
   };
@@ -694,7 +632,7 @@ const App: React.FC = () => {
     sunday.setDate(today.getDate() - currentDay);
     
     const weekData = [];
-    const historyKey = `lifesteps_daily_history_${user.id}`;
+    const historyKey = `steply_daily_history_${user.id}`;
     const history = JSON.parse(localStorage.getItem(historyKey) || '{}');
     
     for (let i = 0; i < 7; i++) {
@@ -728,7 +666,7 @@ const App: React.FC = () => {
              <div className="w-16 h-16 bg-blue-600 rounded-2xl mx-auto flex items-center justify-center mb-4 shadow-[0_0_20px_rgba(37,99,235,0.4)]">
                 <i className="fa-solid fa-shoe-prints text-white text-3xl"></i>
              </div>
-             <h1 className={`text-2xl font-black ${isDark ? 'text-white' : 'text-black'}`}>lifesteps</h1>
+             <h1 className={`text-2xl font-black ${isDark ? 'text-white' : 'text-black'}`}>fit<span className="text-blue-600">pulse</span></h1>
              <p className={`${isDark ? 'text-white/40' : 'text-black/60'} text-[10px] mt-1 font-black uppercase tracking-[0.2em]`}>Pedometer de Alta Performance</p>
           </div>
           <div className={`flex ${isDark ? 'bg-white/5' : 'bg-black/5'} p-1 rounded-xl mb-6`}>
@@ -799,11 +737,11 @@ const App: React.FC = () => {
     <div className={`flex flex-col min-h-screen max-w-md mx-auto relative pb-24 transition-colors duration-300 ${isDark ? 'bg-[#050505]' : 'bg-white'}`}>
       <header className="p-6 flex justify-between items-center">
         <div>
-          <h1 className={`text-2xl font-black ${isDark ? 'text-white' : 'text-black'}`}>life<span className="text-blue-600">steps</span></h1>
+          <h1 className={`text-2xl font-black ${isDark ? 'text-white' : 'text-black'}`}>fit<span className="text-blue-600">pulse</span></h1>
           <div className="flex items-center gap-2 mt-1">
              <span className={`text-[8px] font-black px-1.5 py-0.5 rounded border transition-all ${isTracking ? 'bg-blue-600/10 border-blue-500/20 text-blue-600' : 'bg-black/5 border-black/10 text-black/20'} uppercase`}>
                <i className={`fa-solid fa-person-walking mr-1 ${isTracking && 'animate-bounce'}`}></i>
-               {isTracking ? 'Monitoramento Ativo (Segundo Plano)' : 'Pausado'}
+               {isTracking ? 'Monitoramento Ativo (Tela Ligada)' : 'Pausado'}
              </span>
              {!isOnline && (
                <span className={`text-[8px] font-black px-1.5 py-0.5 rounded border ${user?.isPremium ? 'bg-emerald-600/10 border-emerald-500/20 text-emerald-600' : 'bg-red-600/10 border-red-500/20 text-red-600'} uppercase`}>
@@ -834,37 +772,29 @@ const App: React.FC = () => {
         <main className="flex-1 overflow-y-auto px-4">
           <StepCircle current={stats.steps} goal={user?.stepGoal || DEFAULT_GOAL} isDark={isDark} />
           
-          {/* Card União Android e Segundo Plano */}
+          {/* Card Aviso de Uso em Primeiro Plano */}
           <div 
-            onClick={() => setShowBackgroundSettings(true)} 
-            className={`cursor-pointer mt-2 mb-6 p-4 rounded-3xl border transition-all flex items-center justify-between group ${
-              isTracking 
-                ? isDark 
-                  ? 'bg-blue-600/10 border-blue-500/20 hover:bg-blue-600/15'
-                  : 'bg-blue-50 border-blue-200 hover:bg-blue-100/50'
-                : isDark
-                  ? 'bg-zinc-900 border-white/5 hover:bg-zinc-850'
-                  : 'bg-zinc-50 border-black/5 hover:bg-zinc-100'
+            className={`mt-2 mb-6 p-4 rounded-3xl border transition-all flex items-center justify-between ${
+              isDark 
+                ? 'bg-amber-500/5 border-amber-500/10'
+                : 'bg-amber-50 border-amber-200/60'
             }`}
           >
             <div className="flex items-center gap-3 animate-in fade-in duration-500">
               <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
-                isTracking ? 'bg-blue-600 text-white animate-pulse' : 'bg-zinc-700/10 text-zinc-500'
+                isDark ? 'bg-amber-500/10 text-amber-400' : 'bg-amber-100 text-amber-700'
               }`}>
-                <i className="fa-solid fa-person-running text-lg"></i>
+                <i className="fa-solid fa-triangle-exclamation text-lg animate-pulse"></i>
               </div>
               <div className="text-left">
-                <h4 className={`text-xs font-black uppercase tracking-wider ${isDark ? 'text-white' : 'text-black'}`}>
-                  {isTracking ? 'Segundo Plano Ativo' : 'Rastreamento Inativo'}
+                <h4 className={`text-xs font-black uppercase tracking-wider ${isDark ? 'text-amber-400' : 'text-amber-800'}`}>
+                  Aviso de Segundo Plano
                 </h4>
-                <p className={`text-[10px] ${isDark ? 'text-white/40' : 'text-black/50'} leading-snug`}>
-                  {isTracking 
-                    ? 'Ganhando passos simulados ao fechar/minimizar o app!' 
-                    : 'Aprenda como configurar em segundo plano no Android.'}
+                <p className={`text-[10px] ${isDark ? 'text-white/50' : 'text-black/60'} leading-tight`}>
+                  O app não funciona em segundo plano. Mantenha-o aberto com a tela ligada!
                 </p>
               </div>
             </div>
-            <i className="fa-solid fa-chevron-right text-xs text-blue-500/50 group-hover:translate-x-0.5 transition-all"></i>
           </div>
 
           {/* Seletor de Ritmo de Atividade (Caminhada vs Trote vs Corrida) */}
@@ -987,9 +917,9 @@ const App: React.FC = () => {
                       </p>
                     </div>
                     <div className="flex gap-2">
-                      <span className="text-blue-500 font-bold">2.</span>
+                      <span className="text-amber-500 font-bold">2.</span>
                       <p>
-                        <strong className={isDark ? 'text-white font-bold' : 'text-zinc-900 font-bold'}>Rastreamento em Segundo Plano:</strong> Ative a chave de <strong className="text-blue-500 font-bold">Rastreamento Ativo</strong> simulada acima para acumular dados passivos de passos corporais mesmo quando o navegador estiver fechado ou minimizado.
+                        <strong className={isDark ? 'text-white font-bold' : 'text-zinc-900 font-bold'}>Aviso de Segundo Plano:</strong> Este aplicativo <strong className="text-amber-500 font-bold">não funciona em segundo plano</strong> ou com a tela desligada. Mantenha o aplicativo aberto e a tela ligada durante a sua caminhada para garantir o registro correto de todos os seus passos.
                       </p>
                     </div>
                     <div className="flex gap-2">

@@ -30,7 +30,7 @@ export const BackgroundSettingsModal: React.FC<BackgroundSettingsModalProps> = (
 
   const codeManifest = `<?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.lifesteps.app">
+    package="com.fitpulse.app">
 
     <!-- Permissão para rodar serviços em segundo plano no Android 9+ -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
@@ -51,7 +51,7 @@ export const BackgroundSettingsModal: React.FC<BackgroundSettingsModalProps> = (
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
-        android:theme="@style/Theme.LifeSteps">
+        android:theme="@style/Theme.FitPulse">
 
         <activity
             android:name=".MainActivity"
@@ -83,7 +83,7 @@ export const BackgroundSettingsModal: React.FC<BackgroundSettingsModalProps> = (
     </application>
 </manifest>`;
 
-  const codeService = `package com.lifesteps.app
+  const codeService = `package com.fitpulse.app
 
 import android.app.*
 import android.content.Context
@@ -143,7 +143,7 @@ class StepCounterService : Service(), SensorEventListener {
         val sessionSteps = currentTotalSteps - startingSteps
         
         // Salva os passos localmente no SharedPreferences (ou banco SQLite/Room)
-        val sharedPref = getSharedPreferences("LifeStepsStats", Context.MODE_PRIVATE)
+        val sharedPref = getSharedPreferences("FitPulseStats", Context.MODE_PRIVATE)
         val today = Calendar.getInstance().get(Calendar.DAY_OF_YEAR).toString()
         val currentSteps = sharedPref.getInt("steps_$today", 0)
         val totalStepsNow = currentSteps + sessionSteps
@@ -179,7 +179,7 @@ class StepCounterService : Service(), SensorEventListener {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("LifeSteps em Segundo Plano")
+            .setContentTitle("FitPulse em Segundo Plano")
             .setContentText(content)
             .setSmallIcon(android.R.drawable.ic_menu_compass) // use seu próprio ícone drawable aqui
             .setContentIntent(pendingIntent)
@@ -202,7 +202,7 @@ class StepCounterService : Service(), SensorEventListener {
     }
 }`;
 
-  const codeWorker = `package com.lifesteps.app
+  const codeWorker = `package com.fitpulse.app
 
 import android.content.Context
 import androidx.work.CoroutineWorker
@@ -225,7 +225,7 @@ class StepSyncWorker(
 
     override suspend fun doWork(): Result {
         // Recupera os passos que o Foreground Service salvou localmente
-        val sharedPref = applicationContext.getSharedPreferences("LifeStepsStats", Context.MODE_PRIVATE)
+        val sharedPref = applicationContext.getSharedPreferences("FitPulseStats", Context.MODE_PRIVATE)
         val today = Calendar.getInstance().get(Calendar.DAY_OF_YEAR).toString()
         val totalSteps = sharedPref.getInt("steps_$today", 0)
 
@@ -236,7 +236,7 @@ class StepSyncWorker(
             val body = jsonBody.toRequestBody("application/json; charset=utf-8".toMediaType())
             
             val request = Request.Builder()
-                .url("https://vossa-api-lifesteps.com/api/sync")
+                .url("https://vossa-api-fitpulse.com/api/sync")
                 .post(body)
                 .build()
 
@@ -337,7 +337,7 @@ class StepSyncWorker(
                   <li><strong className="text-white">ATIVE</strong> o interruptor de estado acima.</li>
                   <li><strong className="text-white">MINIMIZE</strong> a aba do seu navegador ou mude de tela.</li>
                   <li><strong className="text-white">AGUARDE</strong> alguns segundos (ex: 20-30 segundos).</li>
-                  <li><strong className="text-white">RETORNE</strong> ao LifeSteps. O app aplicará a diferença de tempo e creditará seus passos simulados com uma notificação especial na tela!</li>
+                  <li><strong className="text-white">RETORNE</strong> ao FitPulse. O app aplicará a diferença de tempo e creditará seus passos simulados com uma notificação especial na tela!</li>
                 </ol>
               </div>
 

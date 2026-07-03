@@ -65,7 +65,7 @@ export const PremiumAdvantagesPage: React.FC<PremiumAdvantagesPageProps> = ({ on
         <div className="w-20 h-20 bg-gradient-to-tr from-yellow-400 to-amber-600 rounded-[28px] mx-auto mb-6 flex items-center justify-center shadow-xl">
           <i className="fa-solid fa-crown text-white text-4xl"></i>
         </div>
-        <h1 className={`text-3xl font-black mb-2 ${isDark ? 'text-white' : 'text-black'}`}>lifesteps <span className="text-yellow-600">PRO</span></h1>
+        <h1 className={`text-3xl font-black mb-2 ${isDark ? 'text-white' : 'text-black'}`}>fitpulse <span className="text-yellow-600">PRO</span></h1>
         <p className={`${isDark ? 'text-white/40' : 'text-black/50'} text-sm max-w-xs mx-auto`}>Tudo que você precisa para atingir sua melhor versão.</p>
       </div>
 

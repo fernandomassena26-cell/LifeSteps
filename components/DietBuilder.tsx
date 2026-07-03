@@ -17,7 +17,7 @@ export const DietBuilder: React.FC<Props> = ({ profile, isDark }) => {
   const [savedDiet, setSavedDiet] = useState<any>(null);
   const [showSavedFeedback, setShowSavedFeedback] = useState(false);
 
-  const DIET_STORAGE_KEY = `lifesteps_saved_diet_${profile.id}`;
+  const DIET_STORAGE_KEY = `fitpulse_saved_diet_${profile.id}`;
 
   useEffect(() => {
     // Carrega opções da API
